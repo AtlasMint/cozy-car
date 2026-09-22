@@ -12,11 +12,9 @@ export interface GlassPane {
 }
 
 export interface ShellRig {
-  group: THREE.Group;
   panes: GlassPane[];
   /** 0..1 intensities for the headlights and tail-lights. */
   setLights(head: number, tail: number): void;
-  dispose(): void;
 }
 
 const S = CAR.SILL_Y;
@@ -71,11 +69,9 @@ function pathShape(points: [number, number][]): THREE.Shape {
   return s;
 }
 
-export function createShell(): ShellRig {
-  const b = new Builder();
+export function createShell(b: Builder): ShellRig {
   const halfW = CAR.WIDTH / 2;
   const panes: GlassPane[] = [];
-  const paneGeoms: THREE.BufferGeometry[] = [];
 
   const addPane = (name: string, geometry: THREE.BufferGeometry) => {
     const mesh = new THREE.Mesh(geometry, mats.glass);
@@ -84,8 +80,7 @@ export function createShell(): ShellRig {
     mesh.castShadow = false;
     mesh.renderOrder = 10;
     panes.push({ name, mesh });
-    paneGeoms.push(geometry);
-    b.dyn(mesh);
+    b.dyn(mesh, geometry);
   };
 
   // Far wall: the whole side silhouette with window holes and wheel arches, 5 cm thick.
@@ -101,10 +96,12 @@ export function createShell(): ShellRig {
   rearGlass.translate(0, 0, W + T / 2);
   addPane('sideRear', rearGlass);
 
-  // Roof half with headliner, and a small rear lip.
-  b.cutBox(1.34, 0.05, -halfW, W + T, mats.body, { x: -0.55, y: 1.395 });
-  b.cutBox(1.28, 0.016, -halfW, W, mats.fabricLight, { x: -0.55, y: 1.362 });
-  b.cutBox(0.08, 0.035, -halfW, W + T, mats.body, { x: -1.26, y: 1.41 });
+  // Roof with headliner and a small rear lip — sheared on its own staggered plane so the
+  // driver stays in view (see CAR.ROOF_CUT_X).
+  const roofCut = CAR.ROOF_CUT_X;
+  b.cutBox(1.34, 0.05, -halfW, W + T, mats.body, { x: -0.55, y: 1.395, cutAt: roofCut });
+  b.cutBox(1.28, 0.016, -halfW, W, mats.fabricLight, { x: -0.55, y: 1.362, cutAt: roofCut });
+  b.cutBox(0.08, 0.035, -halfW, W + T, mats.body, { x: -1.26, y: 1.41, cutAt: roofCut });
 
   // Bonnet — slightly raised over the engine — and the front panel, grille, far headlight.
   b.cutBox(1.197, 0.03, -halfW, W + T, mats.body, { x: 1.255, y: 0.925, rz: -0.1088 });
@@ -135,18 +132,12 @@ export function createShell(): ShellRig {
   b.box(0.55, 0.05, 0.1, mats.vinylLight, { x: 0.07, y: 0.72, z: W - 0.1 });
   b.box(0.1, 0.02, 0.03, mats.chrome, { x: 0.3, y: 0.83, z: W - 0.065 });
 
-  const built = b.finish('shell');
   return {
-    group: built.group,
     panes,
     setLights(head, tail) {
       mats.headLight.emissiveIntensity = head * 3.5;
       mats.tailLight.emissiveIntensity = 0.15 + tail * 2.2;
       mats.indicator.emissiveIntensity = 0.1 + tail * 0.6;
-    },
-    dispose() {
-      built.dispose();
-      for (const g of paneGeoms) g.dispose();
     },
   };
 }

@@ -168,12 +168,13 @@ export class Builder {
     z0: number,
     z1: number,
     mat: THREE.Material,
-    p: { x?: number; y?: number; rz?: number } = {},
+    p: { x?: number; y?: number; rz?: number; cutAt?: number } = {},
     detail?: 'foam',
   ): boolean {
-    if (z1 <= CUT) return false;
-    const clipped = z0 < CUT;
-    const a = clipped ? CUT : z0;
+    const cut = p.cutAt ?? CUT;
+    if (z1 <= cut) return false;
+    const clipped = z0 < cut;
+    const a = clipped ? cut : z0;
     const zc = (a + z1) / 2;
     const x = p.x ?? 0;
     const y = p.y ?? 0;
@@ -186,20 +187,20 @@ export class Builder {
     if (clipped) {
       const cap = new THREE.PlaneGeometry(w, h);
       cap.rotateY(Math.PI);
-      cap.translate(0, 0, CUT - CAP_GAP);
+      cap.translate(0, 0, cut - CAP_GAP);
       cap.rotateZ(rz);
       cap.translate(x, y, 0);
       this.add(cap, mats.cut);
       if (detail === 'foam') {
         const foam = new THREE.PlaneGeometry(w * 0.8, h * 0.72);
         foam.rotateY(Math.PI);
-        foam.translate(0, 0, CUT - CAP_GAP * 2);
+        foam.translate(0, 0, cut - CAP_GAP * 2);
         foam.rotateZ(rz);
         foam.translate(x, y, 0);
         this.add(foam, mats.cutFoam);
         const frame = new THREE.PlaneGeometry(w * 0.86, Math.min(0.025, h * 0.18));
         frame.rotateY(Math.PI);
-        frame.translate(0, -h * 0.5 + Math.min(0.025, h * 0.18) * 1.2, CUT - CAP_GAP * 3);
+        frame.translate(0, -h * 0.5 + Math.min(0.025, h * 0.18) * 1.2, cut - CAP_GAP * 3);
         frame.rotateZ(rz);
         frame.translate(x, y, 0);
         this.add(frame, mats.cutFrame);

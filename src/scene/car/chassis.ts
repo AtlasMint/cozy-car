@@ -7,13 +7,10 @@ import { Builder, mats } from './parts';
  * gear. Everything at or below sill height is whole — the cut only applies above it.
  */
 export interface ChassisRig {
-  group: THREE.Group;
   exhaustTip: THREE.Vector3;
-  dispose(): void;
 }
 
-export function createChassis(): ChassisRig {
-  const b = new Builder();
+export function createChassis(b: Builder): ChassisRig {
   const F = CAR.FLOOR_Y;
   const FT = CAR.FLOOR_TOP_Y;
   const S = CAR.SILL_Y;
@@ -81,6 +78,5 @@ export function createChassis(): ChassisRig {
     b.cylZ(0.03, 0.12, mats.metalDark, { x, y: CAR.WHEEL_RADIUS, z: z - 0.02 });
   }
 
-  const built = b.finish('chassis');
-  return { group: built.group, exhaustTip: tip, dispose: built.dispose };
+  return { exhaustTip: tip };
 }

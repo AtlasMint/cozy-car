@@ -33,10 +33,25 @@ window.addEventListener('pointermove', (e) => {
   iso.setPointer((e.clientX / rig.width) * 2 - 1, -(e.clientY / rig.height) * 2 + 1);
 });
 
-loop.onTick((dt) => {
+const stats = { calls: 0, triangles: 0, fps: 0 };
+let fpsAcc = 0;
+let fpsN = 0;
+loop.onTick((dt, elapsed) => {
+  const state = store.get();
   iso.update(dt);
+  car.idle.update(dt, elapsed, stage.bodyRig.position.y, state.mode, state.reducedMotion);
   rig.renderer.render(stage.scene, iso.camera);
+  stats.calls = rig.renderer.info.render.calls;
+  stats.triangles = rig.renderer.info.render.triangles;
+  fpsAcc += dt;
+  fpsN++;
+  if (fpsAcc >= 1) {
+    stats.fps = Math.round(fpsN / fpsAcc);
+    fpsAcc = 0;
+    fpsN = 0;
+  }
 });
 loop.start();
 
 (window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso, car };
+(window as unknown as { __shotgunStats: unknown }).__shotgunStats = stats;

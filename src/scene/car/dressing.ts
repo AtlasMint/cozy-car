@@ -7,15 +7,11 @@ import { Builder, mats, paneGeometry } from './parts';
  * the holder, a jacket on the rear bench, a sticker on the rear glass and shelf clutter.
  */
 export interface DressingRig {
-  group: THREE.Group;
   /** Pivot at the mirror; rotate x/z to swing the freshener. */
   freshener: THREE.Group;
-  dispose(): void;
 }
 
-export function createDressing(): DressingRig {
-  const b = new Builder();
-  const W = CAR.FAR_WALL_Z;
+export function createDressing(b: Builder): DressingRig {
 
   // Rear-view mirror hanging from the header, reflective face toward the driver (and camera).
   b.cyl(0.008, 0.008, 0.1, mats.trim, { x: 0.17, y: 1.3, rz: 0.54 });
@@ -67,7 +63,5 @@ export function createDressing(): DressingRig {
   mats.sticker.side = THREE.DoubleSide;
   b.add(sticker, mats.sticker);
 
-  const built = b.finish('dressing');
-  void W;
-  return { group: built.group, freshener, dispose: built.dispose };
+  return { freshener };
 }

@@ -7,7 +7,6 @@ import { Builder, mats } from './parts';
  * six preset buttons. The hitbox is an invisible oversized proxy for the raycaster.
  */
 export interface RadioRig {
-  group: THREE.Group;
   hitbox: THREE.Mesh;
   /** World point the camera centres on when the radio is focused. */
   face: THREE.Vector3;
@@ -20,8 +19,7 @@ export interface RadioRig {
 const LCD_W = 256;
 const LCD_H = 64;
 
-export function createRadio(): RadioRig {
-  const b = new Builder();
+export function createRadio(b: Builder): RadioRig {
   const [fx, fy, fz] = CAR.RADIO_FACE;
 
   b.box(0.016, 0.12, 0.3, mats.trim, { x: fx, y: fy, z: fz });
@@ -78,9 +76,7 @@ export function createRadio(): RadioRig {
   hitbox.name = 'hitbox:radio';
   b.dyn(hitbox, hitGeom);
 
-  const built = b.finish('radio');
   return {
-    group: built.group,
     hitbox,
     face: new THREE.Vector3(fx, fy, fz),
     setLcd: draw,
@@ -88,7 +84,6 @@ export function createRadio(): RadioRig {
       lcdMat.emissiveIntensity = k * 0.8;
     },
     dispose() {
-      built.dispose();
       texture.dispose();
       lcdMat.dispose();
       (hitbox.material as THREE.Material).dispose();

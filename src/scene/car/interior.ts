@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CAR } from '../../core/constants';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Builder, CUT, mats, tilted } from './parts';
 import { lerp } from '../../util/math';
 
@@ -8,14 +9,12 @@ import { lerp } from '../../util/math';
  * the passenger's sectioned on the cut plane — rear bench, shelf and visors.
  */
 export interface InteriorRig {
-  group: THREE.Group;
   /** Steering wheel pivot at the hub; the driver's hands are parented here. */
   wheelNode: THREE.Group;
   setTacho(rpm: number): void;
   setSpeedo(kmh: number): void;
   /** 0..1 dash backlight, needles and LCD glow. */
   setDashGlow(k: number): void;
-  dispose(): void;
 }
 
 const W = CAR.FAR_WALL_Z;
@@ -30,23 +29,23 @@ function seat(b: Builder, zc: number): void {
   b.cutBox(0.4, 0.1, zc - 0.2, zc + 0.2, mats.metalDark, { x: 0.2, y: 0.39 });
   b.cutBox(0.5, 0.03, zc + 0.18, zc + 0.22, mats.metalDark, { x: 0.2, y: 0.335 });
   b.cutBox(0.5, 0.03, zc - 0.22, zc - 0.18, mats.metalDark, { x: 0.2, y: 0.335 });
-  // Backrest, leaning back, with bolsters, a centre seam and a headrest on two posts.
+  // Backrest, leaning back, with bolsters, a centre seam and a low headrest on two posts.
+  // Kept low so the driver's shoulders and the back of their head clear it from the camera.
   const tilt = 0.2;
-  const [bx, by] = tilted(-0.03, 0.5, -0.07, 0.31, tilt);
-  b.cutBox(0.14, 0.6, zc - hw, zc + hw, mats.fabric, { x: bx, y: by, rz: tilt }, 'foam');
-  b.cutBox(0.16, 0.56, zc + hw - 0.07, zc + hw, mats.fabricDark, { x: bx, y: by, rz: tilt });
-  b.cutBox(0.16, 0.56, zc - hw, zc - hw + 0.07, mats.fabricDark, { x: bx, y: by, rz: tilt });
-  const [sx, sy] = tilted(-0.03, 0.5, -0.145, 0.31, tilt);
-  b.cutBox(0.006, 0.5, zc - 0.012, zc + 0.012, mats.fabricDark, { x: sx, y: sy, rz: tilt });
-  const [hx, hy] = tilted(-0.03, 0.5, -0.06, 0.7, tilt);
-  b.cutBox(0.1, 0.13, zc - 0.13, zc + 0.13, mats.fabric, { x: hx, y: hy, rz: tilt }, 'foam');
-  const [px, py] = tilted(-0.03, 0.5, -0.06, 0.615, tilt);
+  const [bx, by] = tilted(-0.03, 0.5, -0.07, 0.24, tilt);
+  b.cutBox(0.14, 0.46, zc - hw, zc + hw, mats.fabric, { x: bx, y: by, rz: tilt }, 'foam');
+  b.cutBox(0.16, 0.42, zc + hw - 0.07, zc + hw, mats.fabricDark, { x: bx, y: by, rz: tilt });
+  b.cutBox(0.16, 0.42, zc - hw, zc - hw + 0.07, mats.fabricDark, { x: bx, y: by, rz: tilt });
+  const [sx, sy] = tilted(-0.03, 0.5, -0.145, 0.24, tilt);
+  b.cutBox(0.006, 0.38, zc - 0.012, zc + 0.012, mats.fabricDark, { x: sx, y: sy, rz: tilt });
+  const [hx, hy] = tilted(-0.03, 0.5, -0.06, 0.55, tilt);
+  b.cutBox(0.1, 0.11, zc - 0.12, zc + 0.12, mats.fabric, { x: hx, y: hy, rz: tilt }, 'foam');
+  const [px, py] = tilted(-0.03, 0.5, -0.06, 0.485, tilt);
   b.cutBox(0.014, 0.05, zc + 0.05, zc + 0.064, mats.metal, { x: px, y: py, rz: tilt });
   b.cutBox(0.014, 0.05, zc - 0.064, zc - 0.05, mats.metal, { x: px, y: py, rz: tilt });
 }
 
-export function createInterior(): InteriorRig {
-  const b = new Builder();
+export function createInterior(b: Builder): InteriorRig {
 
   // Dashboard: raised rear lip, deeper front section, knee panel beneath.
   b.cutBox(0.1, 0.23, -halfW, W, mats.vinyl, { x: 0.67, y: 0.875 });
@@ -93,36 +92,31 @@ export function createInterior(): InteriorRig {
   wheelNode.name = 'steeringWheel';
   wheelNode.position.set(...CAR.WHEEL_CENTRE);
   wheelNode.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...CAR.WHEEL_NORMAL));
-  const wheelGeoms: THREE.BufferGeometry[] = [];
-  const rim = new THREE.TorusGeometry(CAR.STEERING_RADIUS, 0.021, 10, 32);
+  const wheelParts: THREE.BufferGeometry[] = [new THREE.TorusGeometry(CAR.STEERING_RADIUS, 0.021, 10, 32)];
   const hub = new THREE.CylinderGeometry(0.045, 0.045, 0.04, 16);
   hub.rotateX(Math.PI / 2);
-  wheelGeoms.push(rim, hub);
-  const rimMesh = new THREE.Mesh(rim, mats.vinyl);
-  const hubMesh = new THREE.Mesh(hub, mats.vinyl);
-  rimMesh.castShadow = hubMesh.castShadow = true;
-  wheelNode.add(rimMesh, hubMesh);
+  wheelParts.push(hub);
   for (const a of [Math.PI, 0, -Math.PI / 2]) {
     const spoke = new THREE.BoxGeometry(0.022, 0.14, 0.018);
     spoke.translate(0, 0.095, 0);
     spoke.rotateZ(a - Math.PI / 2);
-    wheelGeoms.push(spoke);
-    const m = new THREE.Mesh(spoke, mats.vinyl);
-    m.castShadow = true;
-    wheelNode.add(m);
+    wheelParts.push(spoke);
   }
-  b.dyn(wheelNode, ...wheelGeoms);
+  const wheelGeom = mergeGeometries(wheelParts.map((g) => (g.index ? g.toNonIndexed() : g)), false)!;
+  for (const g of wheelParts) g.dispose();
+  const wheelMesh = new THREE.Mesh(wheelGeom, mats.vinyl);
+  wheelMesh.castShadow = true;
+  wheelNode.add(wheelMesh);
+  b.dyn(wheelNode, wheelGeom);
   b.cyl(0.02, 0.02, 0.215, mats.vinyl, { x: 0.51, y: 0.895, z: CAR.DRIVER_Z, rz: 1.19 });
 
   // Needles (live).
   const needles: THREE.Group[] = [];
-  const needleGeoms: THREE.BufferGeometry[] = [];
   for (const z of dialZ) {
     const g = new THREE.Group();
     g.position.set(0.496, 0.99, z);
     const geo = new THREE.BoxGeometry(0.004, 0.042, 0.004);
     geo.translate(0, 0.021, 0);
-    needleGeoms.push(geo);
     g.add(new THREE.Mesh(geo, mats.needle));
     needles.push(g);
     b.dyn(g, geo);
@@ -132,9 +126,7 @@ export function createInterior(): InteriorRig {
   tacho.rotation.x = needleAngle(0);
   speedo.rotation.x = needleAngle(0);
 
-  const built = b.finish('interior');
   return {
-    group: built.group,
     wheelNode,
     setTacho(rpm) {
       tacho.rotation.x = needleAngle(rpm / 8000);
@@ -146,10 +138,6 @@ export function createInterior(): InteriorRig {
       mats.dashGlow.emissiveIntensity = k * 1.2;
       mats.needle.emissiveIntensity = k * 1.6;
       mats.lcd.emissiveIntensity = k * 0.9;
-    },
-    dispose() {
-      built.dispose();
-      for (const g of needleGeoms) g.dispose();
     },
   };
 }

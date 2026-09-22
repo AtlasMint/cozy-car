@@ -6,10 +6,16 @@ import { createInterior, type InteriorRig } from './interior';
 import { createRadio, type RadioRig } from './radio';
 import { createWheels, type WheelsRig } from './wheels';
 import { createDressing, type DressingRig } from './dressing';
-import { disposeMaterials } from './parts';
+import { Builder, disposeMaterials } from './parts';
+import { createDriverFigure, type DriverFigure } from '../driver/figure';
+import { createDriverIdle, type DriverIdle } from '../driver/idle';
 
-/** Assembles the cutaway car onto the stage's bodyRig / wheels nodes. */
+/**
+ * Assembles the cutaway car onto the stage's bodyRig / wheels nodes. All static parts from
+ * every module go through one Builder so the car is one merged mesh per material.
+ */
 export interface Car {
+  group: THREE.Group;
   chassis: ChassisRig;
   shell: ShellRig;
   interior: InteriorRig;
@@ -17,23 +23,30 @@ export interface Car {
   wheels: WheelsRig;
   dressing: DressingRig;
   driverRoot: THREE.Group;
+  driver: DriverFigure;
+  idle: DriverIdle;
   dispose(): void;
 }
 
 export function createCar(stage: Stage): Car {
-  const chassis = createChassis();
-  const shell = createShell();
-  const interior = createInterior();
-  const radio = createRadio();
+  const b = new Builder();
+  const chassis = createChassis(b);
+  const shell = createShell(b);
+  const interior = createInterior(b);
+  const radio = createRadio(b);
+  const dressing = createDressing(b);
+  const built = b.finish('car');
   const wheels = createWheels();
-  const dressing = createDressing();
   const driverRoot = new THREE.Group();
   driverRoot.name = 'driverRoot';
 
-  stage.bodyRig.add(chassis.group, shell.group, interior.group, radio.group, dressing.group, driverRoot);
+  stage.bodyRig.add(built.group, driverRoot);
   stage.wheels.add(wheels.group);
+  const driver = createDriverFigure(interior.wheelNode, driverRoot);
+  const idle = createDriverIdle(driver);
 
   return {
+    group: built.group,
     chassis,
     shell,
     interior,
@@ -41,13 +54,13 @@ export function createCar(stage: Stage): Car {
     wheels,
     dressing,
     driverRoot,
+    driver,
+    idle,
     dispose() {
-      chassis.dispose();
-      shell.dispose();
-      interior.dispose();
+      driver.dispose();
+      built.dispose();
       radio.dispose();
       wheels.dispose();
-      dressing.dispose();
       disposeMaterials();
     },
   };

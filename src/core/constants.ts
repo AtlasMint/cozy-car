@@ -82,6 +82,13 @@ export const CAR = {
    * cross it are capped in the cut material. Named per PLAN.md so the glTF seam can keep it.
    */
   CUT_PLANE_X: -0.36,
+  /**
+   * The roof is sheared on its own, further toward the far side. From the rear-left at
+   * isometric elevation, a roof cut on the main plane would sit directly between the camera
+   * and the driver's head and shoulders; staggering this one cut (a common cutaway-drawing
+   * device) keeps the driver, wheel and far door card in view.
+   */
+  ROOF_CUT_X: 0.42,
   LENGTH: 3.8,
   WIDTH: 1.68,
   /** Inner face of the far-side body wall (doors, glass, pillars). */
