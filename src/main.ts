@@ -2,51 +2,49 @@ import * as THREE from 'three';
 import { createRenderer } from './core/renderer';
 import { createLoop } from './core/loop';
 import { createStore, defaultState } from './core/store';
+import { createIsoCamera } from './core/isoCamera';
+import { createStage } from './scene/stage';
+import { createRoad } from './scene/world/road';
+import { createLighting } from './scene/lighting';
+import { PALETTE } from './core/constants';
 
-// Phase 0: scaffold check — a spinning reference cube. Replaced by the stage in Phase 1.
 const canvas = document.getElementById('stage') as HTMLCanvasElement;
 const rig = createRenderer(canvas);
 const loop = createLoop();
 const store = createStore(defaultState);
+const stage = createStage();
+const iso = createIsoCamera();
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color('#9aa2a6');
-const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100);
-camera.position.set(3, 2.5, 3);
-camera.lookAt(0, 0, 0);
-rig.onResize((w, h) => {
-  camera.aspect = w / h;
-  camera.updateProjectionMatrix();
+const road = createRoad(rig.renderer.capabilities.getMaxAnisotropy());
+stage.slab.add(road.mesh);
+
+const lighting = createLighting();
+stage.scene.add(lighting.group);
+
+stage.sky.setColors('#7FA3B8', '#C6B49A');
+stage.setFog(stage.sky.fogColor, 0.02);
+stage.scene.background = stage.sky.fogColor;
+
+// Phase 1 placeholder: a car-sized box on the body rig, replaced by the cutaway in Phase 2.
+const placeholder = new THREE.Mesh(
+  new THREE.BoxGeometry(3.8, 1.45, 1.65),
+  new THREE.MeshStandardMaterial({ color: PALETTE.BODY, roughness: 0.7 }),
+);
+placeholder.position.set(0, 0.25 + 1.45 / 2, 0);
+placeholder.castShadow = true;
+placeholder.receiveShadow = true;
+stage.bodyRig.add(placeholder);
+
+rig.onResize((w, h) => iso.resize(w, h));
+
+window.addEventListener('pointermove', (e) => {
+  iso.setPointer((e.clientX / rig.width) * 2 - 1, -(e.clientY / rig.height) * 2 + 1);
 });
 
-const cube = new THREE.Mesh(
-  new THREE.BoxGeometry(1, 1, 1),
-  new THREE.MeshStandardMaterial({ color: '#7a9e9f', roughness: 0.7 }),
-);
-cube.castShadow = true;
-scene.add(cube);
-
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(6, 6),
-  new THREE.MeshStandardMaterial({ color: '#c6b49a', roughness: 0.9 }),
-);
-ground.rotation.x = -Math.PI / 2;
-ground.position.y = -0.5;
-ground.receiveShadow = true;
-scene.add(ground);
-
-scene.add(new THREE.HemisphereLight('#dfe8ee', '#5a4e44', 0.8));
-const sun = new THREE.DirectionalLight('#fff1dc', 2.2);
-sun.position.set(4, 6, 2);
-sun.castShadow = true;
-scene.add(sun);
-
 loop.onTick((dt) => {
-  cube.rotation.y += dt * 0.8;
-  cube.rotation.x += dt * 0.3;
-  rig.renderer.render(scene, camera);
+  iso.update(dt);
+  rig.renderer.render(stage.scene, iso.camera);
 });
 loop.start();
 
-// Expose for debugging in the console.
-(window as unknown as { shotgun: unknown }).shotgun = { store, loop };
+(window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso };
