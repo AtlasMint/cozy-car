@@ -196,3 +196,86 @@ export const WEATHER = {
   CACHE_TTL_MS: 10 * 60 * 1000,
   REFRESH_MS: 15 * 60 * 1000,
 } as const;
+
+export const WEATHER_FX = {
+  /** Cross-fade rate for effect intensities and looks (λ); ≈ 3 s to settle. */
+  CROSSFADE_LAMBDA: 1.3,
+  NIGHT_LAMBDA: 0.9,
+  /** FogExp2 density per kind — tuned for the small slab and the 3.5 m camera distance. */
+  FOG: { clear: 0.02, cloudy: 0.035, overcast: 0.04, fog: 0.14, drizzle: 0.05, rain: 0.06, heavyRain: 0.08, snow: 0.07, thunder: 0.07 },
+  /** Precipitation intensity per kind (0..1). */
+  INTENSITY: { drizzle: 0.35, rain: 0.7, heavyRain: 1.0, thunder: 0.85, snow: 0.8 },
+  RAIN: {
+    count: 4200,
+    countLow: 2000,
+    fall: 8,
+    length: 0.36,
+    width: 0.03,
+    height: 9,
+    field: { x0: -9, x1: 14, z0: -5.6, z1: 5.6 },
+    shearMax: 1.6,
+    color: '#E4EEF4',
+    alpha: 0.6,
+  },
+  SNOW: { count: 1600, countLow: 700, fall: 1.1, size: 0.075, height: 8, drift: 0.35, shear: 0.22, field: { x0: -9, x1: 14, z0: -5.6, z1: 5.6 } },
+  SPLASH: {
+    count: 360,
+    ring: 0.11,
+    life: 0.55,
+    field: { x0: -8, x1: 12, z0: -2.7, z1: 2.7 },
+    spray: { perWheel: 56, life: 0.45, back: 1.6, up: 0.55, spread: 0.3, size: 0.1, minSpeed: 3 },
+  },
+  GLASS: { cell: 0.055, dropAlpha: 0.55, condenseBelowC: 12, condenseFullC: 2 },
+  LIGHTNING: { minGap: 8, maxGap: 25, thunderMin: 1, thunderMax: 6 },
+  HEADLIGHT: { length: 4.5, radius: 0.7, alpha: 0.09, color: '#FFE9C2', poolAlpha: 0.28 },
+  STREETLIGHT: { intensity: 18, distance: 9, color: '#FFAA5E' },
+  /** Doll's-house rain exclusion: the whole car, roof included, even the unbuilt near half. */
+  CAR_BOX: { min: [-1.98, 0, -0.86] as const, max: [1.98, 1.46, 0.86] as const },
+  COLD_BOOST: { coldC: 8, coolC: 16, cold: 2.0, cool: 1.4 },
+  /** Day looks per kind: sky top (also fog colour), sky bottom, key colour/intensity, hemisphere. */
+  LOOKS: {
+    clear: { top: '#7FA3B8', bottom: '#C6B49A', key: '#FFE7C4', keyI: 2.6, hemiSky: '#CFE0EA', hemiGround: '#8A7A68', hemiI: 1.0 },
+    cloudy: { top: '#93A9B6', bottom: '#BDB4A4', key: '#FFF1E0', keyI: 1.8, hemiSky: '#C9D4DA', hemiGround: '#857A6C', hemiI: 1.05 },
+    overcast: { top: '#9AA2A6', bottom: '#A9ABA7', key: '#E8ECEE', keyI: 0.9, hemiSky: '#BFC5C8', hemiGround: '#7E7A74', hemiI: 1.25 },
+    fog: { top: '#B9BDBF', bottom: '#B0B2B0', key: '#E8ECEE', keyI: 0.5, hemiSky: '#C8CBCC', hemiGround: '#8A8A86', hemiI: 1.3 },
+    drizzle: { top: '#8F9BA3', bottom: '#A2A6A3', key: '#DDE4E8', keyI: 0.8, hemiSky: '#B5BEC4', hemiGround: '#757570', hemiI: 1.2 },
+    rain: { top: '#7E8B95', bottom: '#8E9294', key: '#D5DCE2', keyI: 0.6, hemiSky: '#A6B0B8', hemiGround: '#6B6B68', hemiI: 1.15 },
+    heavyRain: { top: '#66727C', bottom: '#767B7F', key: '#C9D0D6', keyI: 0.4, hemiSky: '#8F9AA3', hemiGround: '#5E5E5B', hemiI: 1.1 },
+    snow: { top: '#B8C2CA', bottom: '#D2D6D6', key: '#EEF3FF', keyI: 1.2, hemiSky: '#D6DEE4', hemiGround: '#9A9C9C', hemiI: 1.3 },
+    thunder: { top: '#4F5863', bottom: '#5E636A', key: '#B9C2CC', keyI: 0.35, hemiSky: '#7A8590', hemiGround: '#4E4E4C', hemiI: 1.0 },
+  },
+  NIGHT: { top: '#0D1620', bottom: '#1A2430', key: '#8FA5C8', keyI: 0.25, hemiSky: '#2A3644', hemiGround: '#141210', hemiI: 0.4 },
+  /** The failure state: "showing a clear evening" — clear, half-way to night. */
+  EVENING_NIGHT: 0.55,
+} as const;
+
+export const AUDIO = {
+  DEFAULT_VOLUME: 0.7,
+  /** Layer gain smoothing (λ). */
+  LEVEL_LAMBDA: 1.5,
+  /** Engine loop playback rate in Focus. */
+  FOCUS_RATE: 1.35,
+  /** Duck factor while the radio panel is open. */
+  DUCK: 0.35,
+  LEVELS: { engine: 0.5, roadNoise: 0.45, rain: 0.55, wind: 0.3, ambience: 0.18, thunder: 0.9, crank: 0.4 },
+} as const;
+
+export const INTERACTION = {
+  HOVER_HZ: 20,
+  CLICK_SLOP_PX: 6,
+  PUSH_IN_MS: 900,
+  RADIO_ZOOM: 3.2,
+  /** Emissive lift on hover. */
+  HOVER_EMISSIVE: 0.35,
+} as const;
+
+export const SPOTIFY = {
+  /** Built-in playlists mapped to the radio's six preset buttons (first four used). */
+  PRESETS: [
+    { label: 'Lo-fi beats', type: 'playlist', id: '37i9dQZF1DWWQRwui0ExPn' },
+    { label: 'Peaceful piano', type: 'playlist', id: '37i9dQZF1DX4sWSpwq3LiO' },
+    { label: 'Jazz in the background', type: 'playlist', id: '37i9dQZF1DWV7EzJMK2FUI' },
+    { label: 'Night drive', type: 'playlist', id: '37i9dQZF1DX0MLFaUdXnjA' },
+  ],
+  STORAGE_KEY: 'shotgun.spotify.v1',
+} as const;

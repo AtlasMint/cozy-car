@@ -14,6 +14,7 @@ import { createStartScreen } from './ui/startScreen';
 import { createModeToggle } from './ui/modeToggle';
 import { createWeatherBadge } from './ui/weatherBadge';
 import { createWeatherSource } from './weather/openMeteo';
+import { createWeatherDirector } from './weather/director';
 
 const canvas = document.getElementById('stage') as HTMLCanvasElement;
 const rig = createRenderer(canvas);
@@ -32,9 +33,6 @@ stage.slab.add(scenery.group);
 
 const lighting = createLighting();
 stage.scene.add(lighting.group);
-stage.sky.setColors('#7FA3B8', '#C6B49A');
-stage.setFog(stage.sky.fogColor, 0.02);
-stage.scene.background = stage.sky.fogColor;
 
 const car = createCar(stage);
 
@@ -43,6 +41,7 @@ createModeToggle(overlay, store);
 createStartScreen(overlay, store);
 const weather = createWeatherSource(store);
 createWeatherBadge(overlay, store, () => void weather.refresh(true));
+const director = createWeatherDirector({ store, stage, lighting, road, scenery, car });
 weather.start();
 
 store.subscribe('engineOn', (on) => {
@@ -72,6 +71,8 @@ loop.onTick((dt, elapsed) => {
   const speedAccel = speedSpring.v;
   road.scroll(speed * dt);
   scenery.update(dt, speed);
+  const look = director.update(dt, speed, engine);
+  rig.setNightExposure(look.night);
 
   const lights = car.update({
     dt,
@@ -84,7 +85,7 @@ loop.onTick((dt, elapsed) => {
     bumpsEnabled: !st.reducedMotion,
     mode: st.mode,
     reducedMotion: st.reducedMotion,
-    coldBoost: 1,
+    coldBoost: look.coldBoost,
   });
   lighting.setIgnition(lights);
 
@@ -104,5 +105,5 @@ loop.onTick((dt, elapsed) => {
 });
 loop.start();
 
-(window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso, car, lighting, scenery, road, weather };
+(window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso, car, lighting, scenery, road, weather, director, renderer: rig.renderer };
 (window as unknown as { __shotgunStats: unknown }).__shotgunStats = stats;

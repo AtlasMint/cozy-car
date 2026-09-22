@@ -10,6 +10,8 @@ export interface Sky {
   setColors(top: THREE.ColorRepresentation, bottom: THREE.ColorRepresentation): void;
   /** Disc position in NDC (−1..1), radius in NDC height units, colour, 0..1 strength. */
   setDisc(x: number, y: number, radius: number, color: THREE.ColorRepresentation, strength: number): void;
+  /** Lightning: 0..1 brightens the whole backdrop. */
+  setFlash(k: number): void;
   dispose(): void;
 }
 
@@ -21,6 +23,7 @@ export function createSky(): Sky {
     uDisc: { value: new THREE.Vector4(0.55, 0.62, 0.06, 0) },
     uDiscColor: { value: new THREE.Color('#fff2d0') },
     uAspect: { value: 16 / 9 },
+    uFlash: { value: 0 },
   };
   const material = new THREE.ShaderMaterial({
     uniforms,
@@ -41,6 +44,7 @@ export function createSky(): Sky {
       uniform vec4 uDisc;      // x, y (ndc), radius, strength
       uniform vec3 uDiscColor;
       uniform float uAspect;
+      uniform float uFlash;
       varying vec2 vUv;
       void main() {
         float t = smoothstep(0.0, 1.0, vUv.y);
@@ -55,6 +59,7 @@ export function createSky(): Sky {
         float disc = 1.0 - smoothstep(uDisc.z * 0.85, uDisc.z, r);
         float halo = exp(-r * r / (uDisc.z * uDisc.z * 6.0)) * 0.35;
         col = mix(col, uDiscColor, (disc + halo) * uDisc.w);
+        col = mix(col, vec3(0.85, 0.88, 0.95), uFlash * 0.8);
         gl_FragColor = vec4(col, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -78,6 +83,9 @@ export function createSky(): Sky {
     setDisc(x, y, radius, color, strength) {
       uniforms.uDisc.value.set(x, y, radius, strength);
       uniforms.uDiscColor.value.set(color);
+    },
+    setFlash(k) {
+      uniforms.uFlash.value = k;
     },
     dispose() {
       geometry.dispose();
