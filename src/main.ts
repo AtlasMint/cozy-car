@@ -8,13 +8,16 @@ import { createScenery } from './scene/world/scenery';
 import { createLighting } from './scene/lighting';
 import { createCar } from './scene/car/car';
 import { createSpring } from './motion/spring';
-import { MOTION, SPEED } from './core/constants';
+import { AUDIO, MOTION, SPEED } from './core/constants';
 import { createOverlay } from './ui/overlay';
 import { createStartScreen } from './ui/startScreen';
 import { createModeToggle } from './ui/modeToggle';
 import { createWeatherBadge } from './ui/weatherBadge';
 import { createWeatherSource } from './weather/openMeteo';
 import { createWeatherDirector } from './weather/director';
+import { createMixer } from './audio/mixer';
+import { createLayers } from './audio/layers';
+import { createVolumeControl } from './ui/volume';
 
 const canvas = document.getElementById('stage') as HTMLCanvasElement;
 const rig = createRenderer(canvas);
@@ -38,14 +41,24 @@ const car = createCar(stage);
 
 const overlay = createOverlay(store);
 createModeToggle(overlay, store);
+createVolumeControl(overlay, store);
 createStartScreen(overlay, store);
 const weather = createWeatherSource(store);
 createWeatherBadge(overlay, store, () => void weather.refresh(true));
 const director = createWeatherDirector({ store, stage, lighting, road, scenery, car });
 weather.start();
 
+// Sound: one context, unlocked by the start gesture; layers follow the same drivers as the scene.
+const mixer = createMixer();
+const layers = createLayers(mixer);
+mixer.setVolume(store.get().masterVolume);
+store.subscribe('masterVolume', (v) => mixer.setVolume(v));
+director.onThunder((strength) => layers.thunder(strength));
+
 store.subscribe('engineOn', (on) => {
-  if (on) car.ignite();
+  if (!on) return;
+  void mixer.resume().then(() => layers.crank());
+  car.ignite();
 });
 
 rig.onResize((w, h) => iso.resize(w, h));
@@ -89,6 +102,16 @@ loop.onTick((dt, elapsed) => {
   });
   lighting.setIgnition(lights);
 
+  layers.update(dt, {
+    engine,
+    blend,
+    speed,
+    rain: look.rain,
+    windKmh: st.weather?.windSpeedKmh ?? 8,
+    night: look.night,
+    rpm: car.rig.output.rpm,
+  });
+
   iso.setParallaxEnabled(!st.reducedMotion && !st.focusedObject);
   iso.update(dt);
   rig.renderer.render(stage.scene, iso.camera);
@@ -105,5 +128,5 @@ loop.onTick((dt, elapsed) => {
 });
 loop.start();
 
-(window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso, car, lighting, scenery, road, weather, director, renderer: rig.renderer };
+(window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso, car, lighting, scenery, road, weather, director, renderer: rig.renderer, mixer, layers };
 (window as unknown as { __shotgunStats: unknown }).__shotgunStats = stats;
