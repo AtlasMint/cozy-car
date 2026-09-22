@@ -12,6 +12,8 @@ import { MOTION, SPEED } from './core/constants';
 import { createOverlay } from './ui/overlay';
 import { createStartScreen } from './ui/startScreen';
 import { createModeToggle } from './ui/modeToggle';
+import { createWeatherBadge } from './ui/weatherBadge';
+import { createWeatherSource } from './weather/openMeteo';
 
 const canvas = document.getElementById('stage') as HTMLCanvasElement;
 const rig = createRenderer(canvas);
@@ -39,6 +41,9 @@ const car = createCar(stage);
 const overlay = createOverlay(store);
 createModeToggle(overlay, store);
 createStartScreen(overlay, store);
+const weather = createWeatherSource(store);
+createWeatherBadge(overlay, store, () => void weather.refresh(true));
+weather.start();
 
 store.subscribe('engineOn', (on) => {
   if (on) car.ignite();
@@ -99,5 +104,5 @@ loop.onTick((dt, elapsed) => {
 });
 loop.start();
 
-(window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso, car, lighting, scenery, road };
+(window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso, car, lighting, scenery, road, weather };
 (window as unknown as { __shotgunStats: unknown }).__shotgunStats = stats;
