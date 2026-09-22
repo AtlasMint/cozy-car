@@ -85,7 +85,7 @@ export const WORLD = {
     GUARDRAILS: 10,
     SIGNS: 4,
     MARKERS: 12,
-    BUILDINGS: 5,
+    BUILDINGS: 3,
   },
 } as const;
 
@@ -186,4 +186,13 @@ export const SPEED = {
   FOCUS: 22,
   /** Same spring as the mode blend so everything accelerates and coasts together. */
   OMEGA: 2.2,
+} as const;
+
+export const WEATHER = {
+  FALLBACK_LOCATION: { lat: 3.139, lon: 101.687, label: 'Kuala Lumpur' },
+  GEO_TIMEOUT_MS: 6000,
+  FETCH_TIMEOUT_MS: 8000,
+  CACHE_KEY: 'shotgun.weather.v1',
+  CACHE_TTL_MS: 10 * 60 * 1000,
+  REFRESH_MS: 15 * 60 * 1000,
 } as const;
