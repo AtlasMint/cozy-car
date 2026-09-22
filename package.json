@@ -1,0 +1,22 @@
+{
+  "name": "shotgun",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A cutaway hatchback on a shelf, idling in your weather. Ambient companion built with Bun + three.js.",
+  "scripts": {
+    "dev": "bun --hot ./dev.ts",
+    "build": "bun build ./index.html --outdir=dist --minify && cp -R public/. dist/",
+    "typecheck": "bunx tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "simplex-noise": "^4.0.3",
+    "three": "^0.186.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "@types/three": "^0.186.0",
+    "typescript": "^7.0.2"
+  }
+}
