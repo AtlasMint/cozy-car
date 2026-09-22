@@ -9,6 +9,28 @@ import { createDressing, type DressingRig } from './dressing';
 import { Builder, disposeMaterials } from './parts';
 import { createDriverFigure, type DriverFigure } from '../driver/figure';
 import { createDriverIdle, type DriverIdle } from '../driver/idle';
+import { createExhaust, type ExhaustRig } from './exhaust';
+import { createEngineRig, type EngineRig } from '../../motion/engineRig';
+import { MOTION } from '../../core/constants';
+import type { Mode } from '../../core/store';
+import { damp } from '../../util/math';
+
+export interface CarInputs {
+  dt: number;
+  elapsed: number;
+  /** 0 = Chill, 1 = Focus (smoothed). */
+  blend: number;
+  /** 0 = engine off, 1 = running (smoothed). */
+  engine: number;
+  speed: number;
+  speedAccel: number;
+  ampScale: number;
+  bumpsEnabled: boolean;
+  mode: Mode;
+  reducedMotion: boolean;
+  /** Multiplier on exhaust density (cold weather). */
+  coldBoost: number;
+}
 
 /**
  * Assembles the cutaway car onto the stage's bodyRig / wheels nodes. All static parts from
@@ -25,6 +47,12 @@ export interface Car {
   driverRoot: THREE.Group;
   driver: DriverFigure;
   idle: DriverIdle;
+  exhaust: ExhaustRig;
+  rig: EngineRig;
+  /** Per-frame choreography. Returns the 0..1 ignition light level for the lighting rig. */
+  update(inputs: CarInputs): number;
+  /** Crank: body dip, exhaust cough, needle sweep. Lights ramp on their own from `engine`. */
+  ignite(): void;
   dispose(): void;
 }
 
@@ -44,8 +72,70 @@ export function createCar(stage: Stage): Car {
   stage.wheels.add(wheels.group);
   const driver = createDriverFigure(interior.wheelNode, driverRoot);
   const idle = createDriverIdle(driver);
+  const exhaust = createExhaust(chassis.exhaustTip);
+  stage.carRoot.add(exhaust.group);
+  const rig = createEngineRig();
+
+  // Air freshener: a damped pendulum forced by the body's accelerations.
+  const pend = { a: 0, av: 0, b: 0, bv: 0 };
+  const g = 9.81 / MOTION.FRESHENER.length;
+  let lights = 0;
+
+  const wheelOrder = [0, 1, 2, 3].map((i) => {
+    // rig order: frontNear, frontFar, rearNear, rearFar
+    const isFront = i < 2;
+    const isNear = i % 2 === 0;
+    return wheels.wheels.findIndex((w) => w.isFront === isFront && w.isNear === isNear);
+  });
 
   return {
+    update(inp) {
+      const out = rig.update({
+        dt: inp.dt,
+        elapsed: inp.elapsed,
+        blend: inp.blend,
+        engine: inp.engine,
+        speed: inp.speed,
+        ampScale: inp.ampScale,
+        bumpsEnabled: inp.bumpsEnabled,
+      });
+      stage.bodyRig.position.y = out.y;
+      stage.bodyRig.rotation.z = out.pitch;
+      stage.bodyRig.rotation.x = out.roll;
+      for (let i = 0; i < 4; i++) wheels.wheels[wheelOrder[i]!]!.springOffset = out.wheels[i]!;
+      wheels.roll(inp.speed * inp.dt);
+      wheels.apply();
+
+      // Pendulum (a: fore/aft swing about Z, b: lateral about X).
+      const F = MOTION.FRESHENER;
+      const dt = Math.min(inp.dt, 0.033);
+      const forceA = out.pitchAccel * F.pitchGain + out.yAccel * F.yGain * 0.3 + inp.speedAccel * F.accelGain;
+      pend.av += (-g * pend.a - F.damping * pend.av + forceA) * dt;
+      pend.a += pend.av * dt;
+      const forceB = out.yAccel * F.yGain * 0.15;
+      pend.bv += (-g * pend.b - F.damping * pend.bv + forceB) * dt;
+      pend.b += pend.bv * dt;
+      dressing.freshener.rotation.z = pend.a;
+      dressing.freshener.rotation.x = pend.b;
+
+      interior.setTacho(out.rpm);
+      interior.setSpeedo(inp.speed * 3.6);
+
+      const rate = inp.engine * (MOTION.EXHAUST.chillRate + (MOTION.EXHAUST.focusRate - MOTION.EXHAUST.chillRate) * inp.blend) * inp.coldBoost;
+      exhaust.update(inp.dt, rate, inp.speed);
+
+      lights = damp(lights, inp.engine > 0.02 ? 1 : 0, MOTION.IGNITION_LIGHTS_LAMBDA, inp.dt);
+      shell.setLights(lights, lights);
+      interior.setDashGlow(lights);
+      radio.setPower(lights);
+
+      idle.update(inp.dt, inp.elapsed, out.y, inp.mode, inp.reducedMotion);
+      return lights;
+    },
+    ignite() {
+      rig.ignite();
+      exhaust.cough();
+    },
     group: built.group,
     chassis,
     shell,
@@ -56,7 +146,10 @@ export function createCar(stage: Stage): Car {
     driverRoot,
     driver,
     idle,
+    exhaust,
+    rig,
     dispose() {
+      exhaust.dispose();
       driver.dispose();
       built.dispose();
       radio.dispose();

@@ -43,9 +43,9 @@ export function createExhaust(tip: THREE.Vector3, poolSize = 14): ExhaustRig {
   const texture = puffTexture();
   const material = new THREE.SpriteMaterial({
     map: texture,
-    color: '#d8d6d0',
+    color: '#e6e4de',
     transparent: true,
-    opacity: 0.32,
+    opacity: 0.5,
     depthWrite: false,
   });
   const pool: Puff[] = [];
@@ -67,7 +67,7 @@ export function createExhaust(tip: THREE.Vector3, poolSize = 14): ExhaustRig {
     p.vz = (Math.random() - 0.5) * 0.12;
     p.sprite.position.copy(tip).add(new THREE.Vector3(-0.05, 0, 0));
     p.sprite.visible = true;
-    (p.sprite.material as THREE.SpriteMaterial).opacity = big ? 0.55 : 0.32;
+    (p.sprite.material as THREE.SpriteMaterial).opacity = big ? 0.7 : 0.5;
     p.sprite.scale.setScalar(p.size);
   };
 
@@ -94,7 +94,7 @@ export function createExhaust(tip: THREE.Vector3, poolSize = 14): ExhaustRig {
         const s = p.size * (1 + MOTION.EXHAUST.grow * k * 3);
         p.sprite.scale.setScalar(s);
         const mat = p.sprite.material as THREE.SpriteMaterial;
-        mat.opacity = (k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85) * 0.34;
+        mat.opacity = (k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85) * 0.5;
       }
     },
     cough() {

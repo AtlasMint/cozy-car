@@ -10,6 +10,8 @@ export interface LightingRig {
   key: THREE.DirectionalLight;
   cabin: THREE.PointLight;
   dash: THREE.PointLight;
+  /** 0..1: dash glow and the warm cabin pocket come up with the engine. */
+  setIgnition(k: number): void;
   dispose(): void;
 }
 
@@ -56,6 +58,10 @@ export function createLighting(): LightingRig {
     key,
     cabin,
     dash,
+    setIgnition(k) {
+      dash.intensity = 1.3 * k;
+      cabin.intensity = 0.7 + 2.3 * k;
+    },
     dispose() {
       key.shadow.dispose();
     },

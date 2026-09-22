@@ -27,7 +27,7 @@ export const PALETTE = {
   HUB: '#B9B4A8',
   GLASS: '#8FB3C2',
   CHROME: '#D8D6CF',
-  TAIL_LIGHT: '#D8382A',
+  TAIL_LIGHT: '#C8281E',
   HEAD_LIGHT: '#FFF3D6',
   HOODIE: '#D4573F',
   SKIN: '#C8967A',
@@ -73,6 +73,20 @@ export const WORLD = {
   ROAD_TILE_LENGTH: 8,
   ROAD_Y: 0.012,
   ROAD_TEXTURE_PX: 512,
+  SCENERY: {
+    /** Instances wrap forward by FIELD_LENGTH once they pass RECYCLE_BEHIND. */
+    RECYCLE_BEHIND: -9,
+    FIELD_LENGTH: 40,
+    STREETLIGHTS: 2,
+    STREETLIGHT_SPACING: 35,
+    STREETLIGHT_PHASE: 6,
+    PINES: 26,
+    BUSHES: 40,
+    GUARDRAILS: 10,
+    SIGNS: 4,
+    MARKERS: 12,
+    BUILDINGS: 5,
+  },
 } as const;
 
 export const CAR = {
@@ -131,4 +145,45 @@ export const DRIVER = {
   REDUCED_MOTION_SCALE: 0.25,
   CUP_POSITION: [0.14, 0.6, -0.08] as const,
   GEAR_KNOB: [0.3, 0.66, 0] as const,
+} as const;
+
+export const MOTION = {
+  /** Mode blend and ignition ramp spring frequencies (rad/s). */
+  MODE_OMEGA: 2.2,
+  ENGINE_OMEGA: 3.0,
+  IDLE_HZ: 11,
+  IDLE: {
+    chill: { y: 0.006, roll: 0.25 * DEG },
+    focus: { y: 0.004, roll: 0.15 * DEG },
+  },
+  SWAY: {
+    hz: 0.5,
+    chill: { y: 0.008, pitch: 0.3 * DEG },
+    focus: { y: 0.02, pitch: 0.9 * DEG },
+  },
+  /** Road noise reaches full amplitude at `fullAt` m/s. */
+  ROAD: { hz: 3.2, y: 0.025, roll: 0.7 * DEG, fullAt: 15 },
+  /** Poisson bumps: `rate` per second at full speed; impulse metres into a spring of `omega`. */
+  BUMP: { rate: 0.12, impulse: 0.05, rearDelay: 0.12, omega: 16 },
+  BODY_SPRING_OMEGA: 9,
+  /** Velocity kick (m/s) into the body spring at ignition — the dip and rebound. */
+  IGNITION_KICK: -0.55,
+  /** Fraction of wheel travel transmitted to the body, and pitch per metre of front−rear difference. */
+  WHEEL_TO_BODY: 0.55,
+  WHEEL_TO_PITCH: 0.35,
+  REDUCED_SCALE: 0.25,
+  /** A car shakes; a UI you are reading should not. */
+  FOCUSED_OBJECT_SCALE: 0.4,
+  RPM: { idle: 750, idleJitter: 40, cruise: 2200, wander: 220, sweepMs: 1200, sweepPeak: 6500 },
+  FRESHENER: { length: 0.17, damping: 1.1, pitchGain: 0.9, yGain: 0.5, accelGain: 0.06 },
+  EXHAUST: { chillRate: 1.4, focusRate: 3.0, life: 1.7, rise: 0.22, drift: 0.7, size: 0.14, grow: 0.4, coldBoost: 1.2 },
+  /** Dash and headlights fade up over this long at ignition. */
+  IGNITION_LIGHTS_LAMBDA: 7,
+} as const;
+
+export const SPEED = {
+  /** Focus cruising speed, m/s (≈ 80 km/h). */
+  FOCUS: 22,
+  /** Same spring as the mode blend so everything accelerates and coasts together. */
+  OMEGA: 2.2,
 } as const;

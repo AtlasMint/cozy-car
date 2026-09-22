@@ -136,7 +136,7 @@ export function createShell(b: Builder): ShellRig {
     panes,
     setLights(head, tail) {
       mats.headLight.emissiveIntensity = head * 3.5;
-      mats.tailLight.emissiveIntensity = 0.15 + tail * 2.2;
+      mats.tailLight.emissiveIntensity = 0.15 + tail * 1.1;
       mats.indicator.emissiveIntensity = 0.1 + tail * 0.6;
     },
   };
