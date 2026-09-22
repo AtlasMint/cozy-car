@@ -7,6 +7,8 @@ interface Tween {
   toTarget: THREE.Vector3;
   fromZoom: number;
   toZoom: number;
+  fromAz: number;
+  toAz: number;
   t: number;
   duration: number;
   resolve: () => void;
@@ -19,8 +21,8 @@ export interface IsoCamera {
   /** Pointer in normalized device coords (−1..1). Drives the parallax nudge. */
   setPointer(nx: number, ny: number): void;
   setParallaxEnabled(on: boolean): void;
-  /** Slide the look-at point and zoom over `ms`. Phase 9's push-in and the return both use this. */
-  frame(target: THREE.Vector3, zoom: number, ms: number): Promise<void>;
+  /** Slide the look-at point and zoom over `ms`, with an optional azimuth swing. The push-in and the return both use this. */
+  frame(target: THREE.Vector3, zoom: number, ms: number, azimuthOffset?: number): Promise<void>;
   /** Return to the default pose. */
   reset(ms: number): Promise<void>;
   resize(width: number, height: number): void;
@@ -43,6 +45,7 @@ export function createIsoCamera(): IsoCamera {
   let pointerY = 0;
   let azOff = 0;
   let elOff = 0;
+  let azSwing = 0; // framing swing from frame(), separate from the parallax nudge
   let parallaxOn = true;
   let tween: Tween | null = null;
 
@@ -59,7 +62,7 @@ export function createIsoCamera(): IsoCamera {
   };
 
   const place = () => {
-    const az = CAMERA.AZIMUTH + azOff;
+    const az = CAMERA.AZIMUTH + azOff + azSwing;
     const el = CAMERA.ELEVATION + elOff;
     dir.set(Math.cos(el) * Math.cos(az), Math.sin(el), Math.cos(el) * Math.sin(az));
     camera.position.copy(target).addScaledVector(dir, CAMERA.DISTANCE);
@@ -67,12 +70,13 @@ export function createIsoCamera(): IsoCamera {
     camera.updateMatrixWorld();
   };
 
-  const startTween = (to: THREE.Vector3, toZoom: number, ms: number) =>
+  const startTween = (to: THREE.Vector3, toZoom: number, ms: number, toAz = 0) =>
     new Promise<void>((resolve) => {
       if (tween) tween.resolve();
       if (ms <= 0) {
         target.copy(to);
         zoom = toZoom;
+        azSwing = toAz;
         applyFrustum();
         tween = null;
         resolve();
@@ -83,6 +87,8 @@ export function createIsoCamera(): IsoCamera {
         toTarget: to.clone(),
         fromZoom: zoom,
         toZoom,
+        fromAz: azSwing,
+        toAz,
         t: 0,
         duration: ms / 1000,
         resolve,
@@ -104,9 +110,9 @@ export function createIsoCamera(): IsoCamera {
     setParallaxEnabled(on) {
       parallaxOn = on;
     },
-    frame: startTween,
+    frame: (t, z, ms, az = 0) => startTween(t, z, ms, az),
     reset(ms) {
-      return startTween(home, 1, ms);
+      return startTween(home, 1, ms, 0);
     },
     resize(width, height) {
       aspect = Math.max(0.2, width / Math.max(1, height));
@@ -123,10 +129,12 @@ export function createIsoCamera(): IsoCamera {
         const k = easeInOutCubic(tween.t / tween.duration);
         target.lerpVectors(tween.fromTarget, tween.toTarget, k);
         zoom = lerp(tween.fromZoom, tween.toZoom, k);
+        azSwing = lerp(tween.fromAz, tween.toAz, k);
         applyFrustum();
         if (tween.t >= tween.duration) {
           target.copy(tween.toTarget);
           zoom = tween.toZoom;
+          azSwing = tween.toAz;
           applyFrustum();
           tween.resolve();
           tween = null;

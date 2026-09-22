@@ -8,7 +8,7 @@ import { createScenery } from './scene/world/scenery';
 import { createLighting } from './scene/lighting';
 import { createCar } from './scene/car/car';
 import { createSpring } from './motion/spring';
-import { AUDIO, MOTION, SPEED } from './core/constants';
+import { AUDIO, INTERACTION, MOTION, SPEED } from './core/constants';
 import { createOverlay } from './ui/overlay';
 import { createStartScreen } from './ui/startScreen';
 import { createModeToggle } from './ui/modeToggle';
@@ -18,6 +18,12 @@ import { createWeatherDirector } from './weather/director';
 import { createMixer } from './audio/mixer';
 import { createLayers } from './audio/layers';
 import { createVolumeControl } from './ui/volume';
+import { createRegistry } from './interaction/interactables';
+import { createRaycast } from './interaction/raycast';
+import { createFocusCamera } from './interaction/focusCamera';
+import { createSpotifyPanel } from './ui/spotifyPanel';
+import { kindLabel } from './weather/wmo';
+import * as THREE from 'three';
 
 const canvas = document.getElementById('stage') as HTMLCanvasElement;
 const rig = createRenderer(canvas);
@@ -60,6 +66,38 @@ store.subscribe('engineOn', (on) => {
   void mixer.resume().then(() => layers.crank());
   car.ignite();
 });
+
+// Interaction: the registry proves the seam; v1 registers exactly one thing.
+const registry = createRegistry();
+registry.register({
+  id: 'radio',
+  hitbox: car.radio.hitbox,
+  label: 'Radio',
+  focus: { target: car.radio.face.clone().add(new THREE.Vector3(0.02, 0.0, 0.06)), zoom: INTERACTION.RADIO_ZOOM, azimuthOffset: 0 },
+  onFocus() {
+    car.radio.setHover(false);
+  },
+  onBlur() {},
+});
+const raycast = createRaycast(canvas, iso, registry, store, overlay.panels, (id) => car.radio.setHover(id === 'radio'));
+createFocusCamera(iso, registry, store);
+const spotify = createSpotifyPanel(overlay, store, iso, car.radio.face, canvas);
+store.subscribe('focusedObject', (id) => mixer.duck(id ? AUDIO.DUCK : 1, 400));
+
+// The radio LCD shows the time and the outside temperature while idle.
+let lcdTimer = 0;
+const updateLcd = () => {
+  const st = store.get();
+  if (!st.engineOn) {
+    car.radio.setLcd('SHOTGUN FM', 'engine off');
+    return;
+  }
+  const now = new Date();
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const w = st.weather;
+  car.radio.setLcd(`${hh}:${mm}`, w ? `${Math.round(w.temperatureC)}°C  ${kindLabel(w.kind, w.isDay)}` : 'finding weather');
+};
 
 rig.onResize((w, h) => iso.resize(w, h));
 window.addEventListener('pointermove', (e) => {
@@ -112,6 +150,14 @@ loop.onTick((dt, elapsed) => {
     rpm: car.rig.output.rpm,
   });
 
+  raycast.update();
+  spotify.update();
+  lcdTimer += dt;
+  if (lcdTimer > 1) {
+    lcdTimer = 0;
+    updateLcd();
+  }
+
   iso.setParallaxEnabled(!st.reducedMotion && !st.focusedObject);
   iso.update(dt);
   rig.renderer.render(stage.scene, iso.camera);
@@ -128,5 +174,5 @@ loop.onTick((dt, elapsed) => {
 });
 loop.start();
 
-(window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso, car, lighting, scenery, road, weather, director, renderer: rig.renderer, mixer, layers };
+(window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso, car, lighting, scenery, road, weather, director, renderer: rig.renderer, mixer, layers, registry };
 (window as unknown as { __shotgunStats: unknown }).__shotgunStats = stats;
