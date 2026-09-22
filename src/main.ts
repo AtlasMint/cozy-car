@@ -1,6 +1,8 @@
 import { createRenderer } from './core/renderer';
 import { createLoop } from './core/loop';
 import { createStore, defaultState } from './core/store';
+import { bindPersistence, loadPrefs } from './core/persist';
+import { createDebugStats } from './ui/debugStats';
 import { createIsoCamera } from './core/isoCamera';
 import { createStage } from './scene/stage';
 import { createRoad } from './scene/world/road';
@@ -8,7 +10,7 @@ import { createScenery } from './scene/world/scenery';
 import { createLighting } from './scene/lighting';
 import { createCar } from './scene/car/car';
 import { createSpring } from './motion/spring';
-import { AUDIO, INTERACTION, MOTION, SPEED } from './core/constants';
+import { AUDIO, INTERACTION, MOTION, QUALITY, RENDER, SPEED } from './core/constants';
 import { createOverlay } from './ui/overlay';
 import { createStartScreen } from './ui/startScreen';
 import { createModeToggle } from './ui/modeToggle';
@@ -28,10 +30,18 @@ import * as THREE from 'three';
 const canvas = document.getElementById('stage') as HTMLCanvasElement;
 const rig = createRenderer(canvas);
 const loop = createLoop();
+// Preferences persist under one namespaced key; system hints seed anything unset.
+const prefs = loadPrefs();
+const coarsePointer = window.matchMedia('(pointer: coarse)').matches;
 const store = createStore({
   ...defaultState,
-  reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  reducedMotion: prefs.reducedMotion ?? window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  mode: prefs.mode ?? defaultState.mode,
+  masterVolume: prefs.masterVolume ?? defaultState.masterVolume,
+  quality: prefs.quality ?? (coarsePointer ? 'low' : 'high'),
 });
+bindPersistence(store);
+const qualityWasChosen = prefs.quality !== undefined;
 const stage = createStage();
 const iso = createIsoCamera();
 
@@ -100,9 +110,32 @@ const updateLcd = () => {
 };
 
 rig.onResize((w, h) => iso.resize(w, h));
-window.addEventListener('pointermove', (e) => {
-  iso.setPointer((e.clientX / rig.width) * 2 - 1, -(e.clientY / rig.height) * 2 + 1);
-});
+// Parallax follows the pointer on desktops; on touch devices it stays off.
+if (!coarsePointer) {
+  window.addEventListener('pointermove', (e) => {
+    iso.setPointer((e.clientX / rig.width) * 2 - 1, -(e.clientY / rig.height) * 2 + 1);
+  });
+}
+
+// Quality: derived from a startup frame-time probe unless the user has chosen; low quality
+// drops the pixel ratio, shrinks the shadow map and thins precipitation (see director).
+const applyQuality = (q: 'low' | 'high') => {
+  rig.renderer.setPixelRatio(q === 'low' ? 1 : Math.min(window.devicePixelRatio, RENDER.MAX_PIXEL_RATIO));
+  const size = q === 'low' ? QUALITY.SHADOW_MAP_LOW : QUALITY.SHADOW_MAP_HIGH;
+  if (lighting.key.shadow.mapSize.x !== size) {
+    lighting.key.shadow.mapSize.set(size, size);
+    lighting.key.shadow.map?.dispose();
+    lighting.key.shadow.map = null;
+  }
+};
+applyQuality(store.get().quality);
+store.subscribe('quality', applyQuality);
+let probeT = 0;
+let probeAcc = 0;
+let probeN = 0;
+let probeDone = qualityWasChosen || coarsePointer;
+
+const debug = createDebugStats(overlay);
 
 const modeSpring = createSpring(0);
 const engineSpring = createSpring(0);
@@ -158,9 +191,23 @@ loop.onTick((dt, elapsed) => {
     updateLcd();
   }
 
-  iso.setParallaxEnabled(!st.reducedMotion && !st.focusedObject);
+  iso.setParallaxEnabled(!st.reducedMotion && !st.focusedObject && !coarsePointer);
   iso.update(dt);
   rig.renderer.render(stage.scene, iso.camera);
+
+  if (!probeDone && st.engineOn) {
+    probeT += dt;
+    if (probeT > QUALITY.PROBE_SKIP_S) {
+      probeAcc += dt;
+      probeN++;
+    }
+    if (probeT > QUALITY.PROBE_SKIP_S + QUALITY.PROBE_SECONDS) {
+      probeDone = true;
+      const avgMs = (probeAcc / Math.max(1, probeN)) * 1000;
+      if (avgMs > QUALITY.LOW_ABOVE_MS) store.set({ quality: 'low' });
+    }
+  }
+  debug?.update(dt, rig.renderer, st.quality);
 
   stats.calls = rig.renderer.info.render.calls;
   stats.triangles = rig.renderer.info.render.triangles;

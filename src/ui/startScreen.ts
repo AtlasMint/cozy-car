@@ -26,6 +26,16 @@ export function createStartScreen(overlay: Overlay, store: Store): { dispose(): 
   input.addEventListener('change', () => store.set({ reducedMotion: input.checked }));
   const unsub = store.subscribe('reducedMotion', (v) => (input.checked = v));
 
+  // Quality override: the startup probe picks a tier; this pins it.
+  const qCheck = el('label', 'ui-check');
+  const qInput = el('input');
+  qInput.type = 'checkbox';
+  qInput.checked = store.get().quality === 'low';
+  qCheck.append(qInput, document.createTextNode('Low quality'));
+  overlay.controls.appendChild(qCheck);
+  qInput.addEventListener('change', () => store.set({ quality: qInput.checked ? 'low' : 'high' }));
+  const unsubQ = store.subscribe('quality', (q) => (qInput.checked = q === 'low'));
+
   const start = () => {
     if (store.get().engineOn) return;
     store.set({ engineOn: true });
@@ -40,8 +50,10 @@ export function createStartScreen(overlay: Overlay, store: Store): { dispose(): 
   return {
     dispose() {
       unsub();
+      unsubQ();
       screen.remove();
       check.remove();
+      qCheck.remove();
     },
   };
 }

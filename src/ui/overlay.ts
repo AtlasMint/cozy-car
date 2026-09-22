@@ -65,10 +65,14 @@ const CSS = /* css */ `
 #overlay .label { position: absolute; transform: translate(-50%, -140%); padding: 5px 10px; border-radius: 999px; background: var(--ui-bg-strong); border: 1px solid var(--ui-line); font-size: 13px; font-weight: 500; white-space: nowrap; pointer-events: none; }
 
 @media (max-width: 640px) {
-  #overlay { font-size: 14px; }
-  #overlay .ui-corner { flex-direction: column; align-items: flex-start; gap: 8px; }
-  #overlay .ui-corner.right { align-items: flex-end; }
-  #overlay .ui-range input[type=range] { width: 70px; }
+  /* Narrow screens: the badge moves to the top, the controls wrap along the bottom. */
+  #overlay { font-size: 13px; }
+  #overlay .ui-corner.left { top: max(12px, env(safe-area-inset-top)); bottom: auto; left: 12px; align-items: flex-start; }
+  #overlay .ui-corner.right { left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); flex-direction: row; flex-wrap: wrap-reverse; justify-content: flex-end; gap: 6px; }
+  #overlay .ui-corner.right button, #overlay .ui-corner.right .ui-check, #overlay .ui-corner.right .ui-range { padding: 7px 10px; }
+  #overlay .ui-seg button { padding: 6px 10px; }
+  #overlay .ui-range input[type=range] { width: 64px; }
+  #overlay .start-inner { transform: translateY(24vh); }
 }
 `;
 

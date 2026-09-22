@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Store, WeatherKind, WeatherState } from '../core/store';
-import { WEATHER_FX } from '../core/constants';
+import { QUALITY, WEATHER_FX } from '../core/constants';
 import type { Stage } from '../scene/stage';
 import type { LightingRig } from '../scene/lighting';
 import type { RoadRig } from '../scene/world/road';
@@ -184,9 +184,10 @@ export function createWeatherDirector(deps: DirectorDeps): WeatherDirector {
       scenery.setNight(cur.night);
       road.setWetness(cur.wet);
 
-      rain.setIntensity(cur.rain);
-      snow.setIntensity(cur.snow);
-      splash.setIntensity(cur.rain);
+      const qs = store.get().quality === 'low' ? QUALITY.PRECIP_SCALE_LOW : 1;
+      rain.setIntensity(cur.rain * qs);
+      snow.setIntensity(cur.snow * qs);
+      splash.setIntensity(cur.rain * qs);
       glass.setIntensity(Math.max(cur.rain, cur.snow * 0.4));
       glass.setCondensation(cur.condense);
       const sk = Math.min(1, speed / 22);

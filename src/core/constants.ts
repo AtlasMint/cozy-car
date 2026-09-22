@@ -249,6 +249,18 @@ export const WEATHER_FX = {
   EVENING_NIGHT: 0.55,
 } as const;
 
+export const QUALITY = {
+  /** Frame-time probe: skip the first seconds (shader compiles), then average. */
+  PROBE_SKIP_S: 1.5,
+  PROBE_SECONDS: 3,
+  /** Average frame time above which quality drops to low (≈ 45 fps). */
+  LOW_ABOVE_MS: 22,
+  SHADOW_MAP_HIGH: 1024,
+  SHADOW_MAP_LOW: 512,
+  /** Precipitation density multiplier on low quality. */
+  PRECIP_SCALE_LOW: 0.5,
+} as const;
+
 export const AUDIO = {
   DEFAULT_VOLUME: 0.7,
   /** Layer gain smoothing (λ). */

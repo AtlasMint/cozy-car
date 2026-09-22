@@ -6,7 +6,7 @@
   "description": "A cutaway hatchback on a shelf, idling in your weather. Ambient companion built with Bun + three.js.",
   "scripts": {
     "dev": "bun --hot ./dev.ts",
-    "build": "bun build ./index.html --outdir=dist --minify && cp -R public/. dist/",
+    "build": "rm -rf dist && bun build ./index.html --outdir=dist --minify && cp -R public/. dist/",
     "typecheck": "bunx tsc --noEmit",
     "test": "bun test"
   },
