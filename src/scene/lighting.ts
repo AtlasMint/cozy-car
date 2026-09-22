@@ -8,6 +8,8 @@ export interface LightingRig {
   group: THREE.Group;
   hemi: THREE.HemisphereLight;
   key: THREE.DirectionalLight;
+  cabin: THREE.PointLight;
+  dash: THREE.PointLight;
   dispose(): void;
 }
 
@@ -15,8 +17,22 @@ export function createLighting(): LightingRig {
   const group = new THREE.Group();
   group.name = 'lighting';
 
-  const hemi = new THREE.HemisphereLight('#dfe8ee', '#6b5f52', 0.9);
+  const hemi = new THREE.HemisphereLight('#dfe8ee', '#8a7a68', 1.1);
   group.add(hemi);
+
+  // The warm pocket: a cabin light and the amber dash glow. Neither casts shadows. The
+  // contrast between this and the cool exterior is the whole mood.
+  const cabin = new THREE.PointLight('#FFB86B', 3.0, 3.5, 1.6);
+  cabin.position.set(0.15, 1.15, 0.15);
+  cabin.name = 'cabinLight';
+  const dash = new THREE.PointLight('#C9884A', 0, 1.6, 1.8);
+  dash.position.set(0.5, 0.92, 0.1);
+  dash.name = 'dashLight';
+  // A little fill so the engine reads under the bonnet.
+  const bay = new THREE.PointLight('#FFE2B8', 0.9, 1.6, 1.8);
+  bay.position.set(1.3, 0.95, -0.45);
+  bay.name = 'bayLight';
+  group.add(cabin, dash, bay);
 
   const key = new THREE.DirectionalLight('#fff0d8', 2.4);
   // Front-left-above: daylight pours in through the cut and the shadow falls to screen-right.
@@ -38,6 +54,8 @@ export function createLighting(): LightingRig {
     group,
     hemi,
     key,
+    cabin,
+    dash,
     dispose() {
       key.shadow.dispose();
     },

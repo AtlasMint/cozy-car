@@ -6,7 +6,7 @@ import { createIsoCamera } from './core/isoCamera';
 import { createStage } from './scene/stage';
 import { createRoad } from './scene/world/road';
 import { createLighting } from './scene/lighting';
-import { PALETTE } from './core/constants';
+import { createCar } from './scene/car/car';
 
 const canvas = document.getElementById('stage') as HTMLCanvasElement;
 const rig = createRenderer(canvas);
@@ -25,15 +25,7 @@ stage.sky.setColors('#7FA3B8', '#C6B49A');
 stage.setFog(stage.sky.fogColor, 0.02);
 stage.scene.background = stage.sky.fogColor;
 
-// Phase 1 placeholder: a car-sized box on the body rig, replaced by the cutaway in Phase 2.
-const placeholder = new THREE.Mesh(
-  new THREE.BoxGeometry(3.8, 1.45, 1.65),
-  new THREE.MeshStandardMaterial({ color: PALETTE.BODY, roughness: 0.7 }),
-);
-placeholder.position.set(0, 0.25 + 1.45 / 2, 0);
-placeholder.castShadow = true;
-placeholder.receiveShadow = true;
-stage.bodyRig.add(placeholder);
+const car = createCar(stage);
 
 rig.onResize((w, h) => iso.resize(w, h));
 
@@ -47,4 +39,4 @@ loop.onTick((dt) => {
 });
 loop.start();
 
-(window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso };
+(window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso, car };

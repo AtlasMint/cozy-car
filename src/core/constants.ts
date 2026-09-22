@@ -41,7 +41,7 @@ export const PALETTE = {
 
 export const CAMERA = {
   /** Metres of world height visible at zoom 1. */
-  VIEW_SIZE: 7.4,
+  VIEW_SIZE: 5.2,
   /** Narrow viewports widen the view so the car (≈3.9 m on screen) still fits. */
   MIN_VIEW_WIDTH: 5.4,
   /** Straight-line distance from target to camera along the view axis. Kept short so the
@@ -49,8 +49,9 @@ export const CAMERA = {
   DISTANCE: 3.5,
   NEAR: -40,
   FAR: 80,
-  /** Look-at point: roughly the driver's hip height, not the ground. */
-  TARGET: [0.15, 0.78, 0.05] as const,
+  /** Look-at point. Offset behind and to the near side of the car so the car sits in the
+   *  upper-middle of the frame with the slab's near edge and the void showing beneath it. */
+  TARGET: [-0.5, 0.55, -0.75] as const,
   /** True isometric elevation, atan(1/√2) ≈ 35.264°. */
   ELEVATION: Math.atan(1 / Math.SQRT2),
   /** Rear-left quarter: camera direction (−1, 0, −1) in the XZ plane. */
@@ -63,13 +64,64 @@ export const CAMERA = {
 export const WORLD = {
   SLAB_BACK: -8,
   SLAB_FRONT: 30,
-  SLAB_WIDTH: 12,
-  SLAB_FAR_WIDTH: 9,
+  SLAB_WIDTH: 10,
+  SLAB_FAR_WIDTH: 8,
   SLAB_THICKNESS: 0.7,
   SLAB_CORNER: 1.4,
-  ROAD_WIDTH: 6.2,
+  ROAD_WIDTH: 5.6,
   /** Metres of road covered by one texture repeat. */
   ROAD_TILE_LENGTH: 8,
   ROAD_Y: 0.012,
   ROAD_TEXTURE_PX: 512,
+} as const;
+
+export const CAR = {
+  /**
+   * Lateral position of the cut plane on the car's lateral axis (world Z). Everything above
+   * the sills that lies nearer the camera than this plane is simply not built; parts that
+   * cross it are capped in the cut material. Named per PLAN.md so the glTF seam can keep it.
+   */
+  CUT_PLANE_X: -0.36,
+  LENGTH: 3.8,
+  WIDTH: 1.68,
+  /** Inner face of the far-side body wall (doors, glass, pillars). */
+  FAR_WALL_Z: 0.79,
+  FAR_WALL_THICKNESS: 0.05,
+  FLOOR_Y: 0.28,
+  FLOOR_TOP_Y: 0.32,
+  SILL_Y: 0.46,
+  BELT_Y: 1.0,
+  ROOF_Y: 1.42,
+  WHEELBASE: 2.4,
+  TRACK: 1.38,
+  WHEEL_RADIUS: 0.29,
+  WHEEL_WIDTH: 0.18,
+  ARCH_RADIUS: 0.35,
+  DRIVER_Z: 0.38,
+  PASSENGER_Z: -0.38,
+  SEAT_WIDTH: 0.5,
+  /** Steering wheel hub centre and the column direction it faces (toward the driver). */
+  WHEEL_CENTRE: [0.4, 0.94, 0.38] as const,
+  WHEEL_NORMAL: [-0.928, 0.371, 0] as const,
+  STEERING_RADIUS: 0.17,
+  EXHAUST_TIP: [-2.0, 0.24, -0.52] as const,
+  /** Rear face of the radio faceplate; the camera push-in centres on this. */
+  RADIO_FACE: [0.552, 0.845, 0] as const,
+  MIRROR_PIVOT: [0.22, 1.19, 0.0] as const,
+} as const;
+
+export const DRIVER = {
+  BREATH_HZ: 0.22,
+  BREATH_SCALE: 0.015,
+  /** Head lags the body's vertical motion by this many seconds and undershoots it. */
+  HEAD_LAG: 0.09,
+  HEAD_UNDERSHOOT: 0.65,
+  GESTURE_GAP_MIN: 12,
+  GESTURE_GAP_MAX: 30,
+  /** Extra backward lean in Chill, radians. */
+  CHILL_SLUMP: 0.1,
+  POSTURE_OMEGA: 2.2,
+  REDUCED_MOTION_SCALE: 0.25,
+  CUP_POSITION: [0.14, 0.6, -0.08] as const,
+  GEAR_KNOB: [0.3, 0.66, 0] as const,
 } as const;
