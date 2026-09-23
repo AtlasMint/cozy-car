@@ -5,7 +5,7 @@ import type { Stage } from '../scene/stage';
 import type { LightingRig } from '../scene/lighting';
 import type { RoadRig } from '../scene/world/road';
 import type { SceneryRig } from '../scene/world/scenery';
-import type { Car } from '../scene/car/car';
+import type { Vehicle } from '../scene/car/car';
 import { damp } from '../util/math';
 import { createRain } from './effects/rain';
 import { createSnow } from './effects/snow';
@@ -41,7 +41,7 @@ export interface DirectorDeps {
   lighting: LightingRig;
   road: RoadRig;
   scenery: SceneryRig;
-  car: Car;
+  car: Vehicle;
 }
 
 export interface WeatherDirector {

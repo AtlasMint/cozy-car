@@ -8,7 +8,8 @@ import { createStage } from './scene/stage';
 import { createRoad } from './scene/world/road';
 import { createScenery } from './scene/world/scenery';
 import { createLighting } from './scene/lighting';
-import { createCar } from './scene/car/car';
+import { createVehicle } from './scene/car/car';
+import { VEHICLES } from './core/vehicles';
 import { createSpring } from './motion/spring';
 import { AUDIO, INTERACTION, MOTION, QUALITY, RENDER, SPEED } from './core/constants';
 import { createOverlay } from './ui/overlay';
@@ -53,7 +54,7 @@ stage.slab.add(scenery.group);
 const lighting = createLighting();
 stage.scene.add(lighting.group);
 
-const car = createCar(stage);
+const car = createVehicle(stage);
 
 const overlay = createOverlay(store);
 createModeToggle(overlay, store);
@@ -221,5 +222,16 @@ loop.onTick((dt, elapsed) => {
 });
 loop.start();
 
-(window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso, car, lighting, scenery, road, weather, director, renderer: rig.renderer, mixer, layers, registry };
+// Hot reload: tear the vehicle down the same way a swap will, closing a working agreement
+// the repo has been violating since v0.1.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    loop.stop();
+    car.dispose();
+    mixer.dispose();
+    rig.dispose();
+  });
+}
+
+(window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso, car, lighting, scenery, road, weather, director, renderer: rig.renderer, mixer, layers, registry, createVehicle, VEHICLES };
 (window as unknown as { __shotgunStats: unknown }).__shotgunStats = stats;

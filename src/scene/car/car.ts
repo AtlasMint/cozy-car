@@ -4,6 +4,7 @@ import { createRadio, type RadioRig } from './radio';
 import { createWheels, type WheelsRig } from './wheels';
 import { Builder, createMaterials, type CarMaterials } from './parts';
 import { HATCHBACK, type BodyKit, type VehicleSpec } from '../../core/vehicles';
+import type { VehicleId } from '../../core/store';
 import { createDriverFigure, type DriverFigure } from '../driver/figure';
 import { createDriverIdle, type DriverIdle } from '../driver/idle';
 import { createExhaust, type ExhaustRig } from './exhaust';
@@ -12,7 +13,7 @@ import { MOTION } from '../../core/constants';
 import type { Mode } from '../../core/store';
 import { damp } from '../../util/math';
 
-export interface CarInputs {
+export interface VehicleInputs {
   dt: number;
   elapsed: number;
   /** 0 = Chill, 1 = Focus (smoothed). */
@@ -33,7 +34,8 @@ export interface CarInputs {
  * Assembles the cutaway car onto the stage's bodyRig / wheels nodes. All static parts from
  * every module go through one Builder so the car is one merged mesh per material.
  */
-export interface Car {
+export interface Vehicle {
+  id: VehicleId;
   group: THREE.Group;
   body: BodyKit;
   radio: RadioRig;
@@ -45,13 +47,13 @@ export interface Car {
   rig: EngineRig;
   materials: CarMaterials;
   /** Per-frame choreography. Returns the 0..1 ignition light level for the lighting rig. */
-  update(inputs: CarInputs): number;
+  update(inputs: VehicleInputs): number;
   /** Crank: body dip, exhaust cough, needle sweep. Lights ramp on their own from `engine`. */
   ignite(): void;
   dispose(): void;
 }
 
-export function createCar(stage: Stage, v: VehicleSpec = HATCHBACK): Car {
+export function createVehicle(stage: Stage, v: VehicleSpec = HATCHBACK): Vehicle {
   const materials: CarMaterials = createMaterials(v.paint);
   const b = new Builder(materials);
   const body = v.build(b, materials, v);
@@ -82,6 +84,7 @@ export function createCar(stage: Stage, v: VehicleSpec = HATCHBACK): Car {
   });
 
   return {
+    id: v.id,
     update(inp) {
       const out = rig.update({
         dt: inp.dt,
@@ -140,6 +143,12 @@ export function createCar(stage: Stage, v: VehicleSpec = HATCHBACK): Car {
     rig,
     materials,
     dispose() {
+      // Teardown is the exact inverse of build: detach every node createVehicle attached,
+      // then free the GPU resources this vehicle owns. Nothing here is shared with the next
+      // vehicle except the driver's own materials, which outlive every body.
+      stage.bodyRig.remove(built.group, driverRoot);
+      stage.wheels.remove(wheels.group);
+      stage.carRoot.remove(exhaust.group);
       exhaust.dispose();
       driver.dispose();
       built.dispose();
