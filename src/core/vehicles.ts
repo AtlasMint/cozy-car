@@ -12,7 +12,9 @@
  */
 import type { VehicleId } from './store';
 import { buildHatchback } from '../scene/car/bodies/hatchback';
+import { buildSports } from '../scene/car/bodies/sports';
 import { AUDIO, CAMERA, CAR, INTERACTION, MOTION, PALETTE, SPEED, WEATHER_FX } from './constants';
+import { DEG } from '../util/math';
 import type { Builder, CarMaterials, PaintSpec } from '../scene/car/parts';
 import type { GlassPane } from '../scene/car/shell';
 import type * as THREE from 'three';
@@ -301,11 +303,126 @@ export const HATCHBACK: VehicleSpec = {
   build: buildHatchback,
 };
 
+
+/**
+ * The yellow sports car. A cheap 1970s roadster: low, wide and short, with a deep yellow that
+ * separates from the plinth — a bright lemon sits at 1.05:1 against the slab and dissolves
+ * into the shelf the car stands on.
+ */
+export const SPORTS: VehicleSpec = {
+  id: 'sports',
+  label: 'Sports',
+  paint: {
+    body: '#C08A22',
+    trim: '#211F1E',
+    hub: '#3A3632',
+    vinyl: '#1E1B19',
+    fabric: '#6B3A32',
+    fabricDark: '#4E2A25',
+  },
+  dims: {
+    length: 3.56,
+    width: 1.86,
+    wallZ: 0.88,
+    wallThickness: 0.05,
+    floorY: 0.16,
+    floorTopY: 0.2,
+    sillY: 0.5,
+    beltY: 0.95,
+    wallTopY: 1.22,
+    wheelbase: 2.3,
+    track: 1.56,
+    wheelRadius: 0.32,
+    wheelWidth: 0.24,
+    rearWidthScale: 1.25,
+    archRadius: 0.37,
+    spokes: 7,
+    contactShadow: [0.88, 0.66],
+  },
+  cabin: {
+    driverZ: 0.4,
+    passengerZ: -0.4,
+    seatWidth: 0.48,
+    wheelCentre: [0.44, 0.84, 0.4],
+    wheelNormal: [-0.9659, 0.2588, 0],
+    steeringRadius: 0.15,
+  },
+  anchors: {
+    radioFace: [0.5, 0.6, 0],
+    radioHitbox: [0.22, 0.24, 0.32],
+    radioFocusOffset: [0.04, 0.08, -0.05],
+    exhaustTip: [-1.76, 0.3, -0.13],
+    swingPivot: [0.46, 0.66, 0.24],
+    swingLength: 0.09,
+    headlight: { x: 1.7, y: 0.56, z: 0.5 },
+    coneLength: 4.2,
+    coneRadius: 0.6,
+    pool: { w: 7, d: 3.4, x: 5.2 },
+    cabinLight: [0.05, 0.92, 0.16],
+    cabinDistance: 2.6,
+    livingLight: null,
+    livingDistance: 4,
+    dashLight: [0.42, 0.72, 0.1],
+    dashDistance: 1.3,
+    shadowOrtho: 4.6,
+    shadowRadius: 3,
+    shadowNormalBias: 0.02,
+  },
+  camera: { viewSize: 4.9, minViewWidth: 5.25, target: [-0.42, 0.46, -0.72], radioZoom: 3.02 },
+  shelter: { min: [-1.84, 0, -1.01], max: [1.84, 1.26, 1.01] },
+  motion: {
+    idleHz: 14,
+    idle: { chill: { y: 0.004, roll: 0.16 * DEG }, focus: { y: 0.003, roll: 0.1 * DEG } },
+    sway: { hz: 0.75, chill: { y: 0.005, pitch: 0.18 * DEG }, focus: { y: 0.012, pitch: 0.55 * DEG } },
+    road: { hz: 4.4, y: 0.016, roll: 0.45 * DEG, fullAt: 17 },
+    bump: { impulse: 0.032, rearDelay: 2.3 / 24, omega: 22 },
+    bodySpringOmega: 13,
+    ignitionKick: -0.42,
+    wheelToBody: 0.72,
+    wheelToPitch: 0.22,
+    rpm: { idle: 980, idleJitter: 30, cruise: 3400, wander: 320, sweepMs: 900, sweepPeak: 6800 },
+    exhaust: { chillRate: 1.0, focusRate: 3.6, life: 1.2, rise: 0.24, drift: 0.8, size: 0.1, grow: 0.4 },
+  },
+  audio: {
+    cylinders: 4,
+    rolloff: { idle: 0.26, loaded: 0.16 },
+    cylinderSpread: 0.04,
+    asymmetryDeg: 3,
+    irregularity: { idle: 0.08, loaded: 0.03 },
+    modes: [55, 164, 273],
+    dronePeak: { freq: 110, q: 7, gainDb: 6 },
+    dampingHz: 3500,
+    knock: { gain: 0.08, freq: 3400, q: 1.4 },
+    tick: { gain: 0.14, freq: 4600 },
+    intake: { idle: 0.1, loaded: 0.45, freq: 820 },
+    crank: { from: 34, to: 80, ms: 520 },
+    gain: { engine: 1.16, road: 1.1, wind: 1.45 },
+    focusRate: 1.55,
+  },
+  pose: {
+    // Reclined, but a driver rather than a sunbather: the first pass at 0.34 rad over a 0.40 m
+    // hip height read as lying in a bath from this camera.
+    hips: [0.12, 0.46, 0.4],
+    torsoLean: 0.22,
+    legSplay: 0.085,
+    knee: [0.55, 0.5],
+    foot: [0.8, 0.34],
+    gripAngles: [118, 62],
+    headTurnYaw: -0.95,
+    slumpScale: 0.55,
+    cup: [0.02, 0.58, -0.1],
+    gearKnob: [0.26, 0.5, 0],
+  },
+  gauges: { rpmFull: 7000, kmhFull: 160 },
+  speed: { focus: 24 },
+  build: buildSports,
+};
+
 export const VEHICLES: Record<VehicleId, VehicleSpec> = {
   hatchback: HATCHBACK,
-  // van and sports land in their own phases
+  // the van lands in its own phase
   van: HATCHBACK,
-  sports: HATCHBACK,
+  sports: SPORTS,
 };
 
 export const VEHICLE_ORDER: readonly VehicleId[] = ['hatchback', 'van', 'sports'];
