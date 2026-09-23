@@ -49,24 +49,6 @@ export function createMaterials(paint: PaintSpec) {
       side: THREE.DoubleSide,
       depthWrite: false,
     }),
-    /**
-     * A wall you can see through. A tall body hides its own cabin from this fixed camera, so
-     * its two camera-facing walls are drawn in the body colour at low opacity instead of being
-     * deleted — the silhouette survives, which a hole in the side would not. The same conceit
-     * as the missing roof, done with alpha rather than absence. Every set carries it so that
-     * no vehicle adds a material key; only a body that needs it puts anything in the bucket.
-     */
-    ghost: new THREE.MeshStandardMaterial({
-      color: paint.body,
-      transparent: true,
-      // Measured against the camper at 0.38, 0.52 and 0.66. Below 0.5 the body colour stops
-      // surviving and the vehicle reads as a display case; above 0.6 the cabin starts to veil.
-      opacity: 0.58,
-      roughness: 0.55,
-      metalness: 0,
-      side: THREE.DoubleSide,
-      depthWrite: false,
-    }),
     tailLight: std(PALETTE.TAIL_LIGHT, 0.35, { emissive: PALETTE.TAIL_LIGHT, emissiveIntensity: 0.15 }),
     indicator: std('#E0A23A', 0.35, { emissive: '#E0A23A', emissiveIntensity: 0.1 }),
     headLight: std(PALETTE.HEAD_LIGHT, 0.3, { emissive: PALETTE.HEAD_LIGHT, emissiveIntensity: 0 }),
@@ -99,20 +81,10 @@ export type CarMaterials = ReturnType<typeof createMaterials>;
  * sit inside the cabin, so their shadow pass is pure cost. The cabin is open, so anything with
  * real volume — seats, dash, console — keeps casting.
  */
-const NO_SHADOW: ReadonlySet<string> = new Set(['lcd', 'needle', 'dialFace', 'plate', 'sticker', 'paper', 'cardboard', 'freshener', 'glass', 'ghost']);
+const NO_SHADOW: ReadonlySet<string> = new Set(['lcd', 'needle', 'dialFace', 'plate', 'sticker', 'paper', 'cardboard', 'freshener', 'glass']);
 
 export function castsShadow(key: string): boolean {
   return !NO_SHADOW.has(key);
-}
-
-/**
- * Transparent walls composite last, over the cabin behind them and the glass set into them.
- * Everything else sorts on its own.
- */
-const RENDER_ORDER: Readonly<Record<string, number>> = { ghost: 12 };
-
-export function renderOrderFor(key: string): number {
-  return RENDER_ORDER[key] ?? 0;
 }
 export type MaterialKey = keyof Omit<CarMaterials, 'dispose'>;
 
@@ -298,7 +270,6 @@ export class Builder {
         const mesh = new THREE.Mesh(geometry, mat);
         mesh.castShadow = castsShadow(key);
         mesh.receiveShadow = true;
-        mesh.renderOrder = renderOrderFor(key);
         mesh.name = `${name}:${key}`;
         target.add(mesh);
         merged.push(geometry);

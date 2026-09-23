@@ -13,10 +13,15 @@ import { lerp } from '../../../util/math';
  * roof that still showed the hatchback's ~30% of floor. At 2.58 m — a real 5.6 m panel van with
  * a high top — `floorExposure` is zero and the solid near wall shows you nothing at all.
  *
- * So the two walls this camera looks through, the near one at −z and the rear one at −x, are
- * built from `m.ghost` instead of `m.body`. Nothing is cut away and nothing is missing: the
- * walls are all present, with their windows, decals and skirts, they simply stop being opaque
- * above the sill. `seeThrough(v)` decides it from the geometry, so the two facts cannot drift.
+ * So the two walls this camera looks through — the near one at −z and the rear one at −x — are
+ * simply not built, exactly as the roof is not built. `seeThrough(v)` decides it from the
+ * geometry, so the two facts cannot drift.
+ *
+ * What stays is what stays on the roof: the frame. Two posts and the wall-top rail outline the
+ * near opening, the rear pillars carry its lights, and each near wheel keeps an arch, because
+ * a wheel's top sits above the floor line and without one it would rise into the room. The
+ * engine bay keeps its whole wing: there is nothing behind it worth seeing, and the front wheel
+ * gets its arch from it for free.
  *
  * The long flank, the open wall-top rail and the dinette table under its light are the three
  * hero shapes. See PLAN-cars.md §15.
@@ -73,6 +78,50 @@ function sideProfile(v: VehicleSpec): THREE.Shape {
   return s;
 }
 
+/** Where the front wheel arch meets the sill, and the arc that cuts it. */
+function archAt(v: VehicleSpec, cx: number) {
+  const S = v.dims.sillY;
+  const cy = v.dims.wheelRadius;
+  const r = v.dims.archRadius;
+  const dy = Math.max(-1, Math.min(1, (S - cy) / r));
+  return { cx, cy, r, S, halfWidth: Math.sqrt(Math.max(0.0001, r * r - (S - cy) * (S - cy))), a0: Math.asin(dy) };
+}
+
+/**
+ * The engine bay and the wing that wraps the front wheel: the one piece of the near side that
+ * stays solid. It stops at the bonnet line, so the driver's head and shoulders are still clear
+ * of it, and it carries the front arch so no lip is needed there.
+ */
+function frontWingProfile(v: VehicleSpec): THREE.Shape {
+  const { cx, cy, r, S, halfWidth: ha, a0 } = archAt(v, v.dims.wheelbase / 2);
+  const half = v.dims.length / 2;
+  const s = new THREE.Shape();
+  s.moveTo(cx - ha, S);
+  s.lineTo(cx - ha, 1.06);
+  s.lineTo(cx + ha, 1.32);
+  // Forward of the cowl it is the real nose profile, unchanged.
+  s.lineTo(2.05, 1.25);
+  s.lineTo(2.72, 1.18);
+  s.lineTo(half, 1.08);
+  s.lineTo(half, 0.66);
+  s.lineTo(cx + ha, S);
+  s.absarc(cx, cy, r, a0, Math.PI - a0, false);
+  s.closePath();
+  return s;
+}
+
+/** A wheel arch lip: the crescent a removed side panel leaves behind over its wheel. */
+function archLipProfile(v: VehicleSpec, cx0: number, width: number): THREE.Shape {
+  const { cx, cy, r, S, a0 } = archAt(v, cx0);
+  const outer = r + width;
+  const a1 = Math.asin(Math.max(-1, Math.min(1, (S - cy) / outer)));
+  const s = new THREE.Shape();
+  s.absarc(cx, cy, outer, a1, Math.PI - a1, false);
+  s.absarc(cx, cy, r, Math.PI - a0, a0, true);
+  s.closePath();
+  return s;
+}
+
 export function buildVan(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKit {
   const d = v.dims;
   const half = d.length / 2;
@@ -81,8 +130,9 @@ export function buildVan(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKit {
   const DECK = d.wallTopY;
   const B = d.beltY;
   const floor = d.floorTopY;
-  // The camera looks from −x, −z: those two walls are the ones between it and the cabin.
-  const wallMat = seeThrough(v) ? m.ghost : m.body;
+  // The camera looks from −x, −z: those two walls are the ones between it and the cabin, so on
+  // a body this tall they are left out the way the roof is left out.
+  const open = seeThrough(v);
   const panes: GlassPane[] = [];
 
   const addPane = (name: string, geometry: THREE.BufferGeometry) => {
@@ -94,34 +144,59 @@ export function buildVan(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKit {
   };
 
   // ---------------------------------------------------------------- walls
-  for (const sign of [1, -1]) {
-    const wall = new THREE.ExtrudeGeometry(sideProfile(v), { depth: T, bevelEnabled: false, curveSegments: 8 });
-    wall.translate(0, 0, sign > 0 ? W : -W - T);
-    b.add(wall, sign > 0 ? m.body : wallMat);
+  // With the rear panel gone the lights move onto the rear pillars, which is the only thing
+  // left back there to hang them from.
+  const tailX = open ? LIVING_X0 - 0.07 : -half + 0.02;
+  const tailZ = open ? W - 0.04 : 0.78;
 
-    // Side window glass. A PlaneGeometry already lies in XY facing ±Z, which is exactly the
-    // orientation a window in a side wall needs — it only has to be moved into place.
-    for (const [name, x0, x1, y0, y1] of [
-      ['dinette', 0.95, -0.15, B, B + WINDOW_H],
-      ['kitchen', -1.25, -1.95, B + 0.1, B + WINDOW_H],
-    ] as const) {
-      const geo = new THREE.PlaneGeometry(Math.abs(x1 - x0), y1 - y0);
-      geo.translate((x0 + x1) / 2, (y0 + y1) / 2, sign * (W + T / 2));
-      addPane(`${name}${sign > 0 ? 'Far' : 'Near'}`, geo);
+  for (const sign of [1, -1]) {
+    const solid = sign > 0 || !open;
+    if (solid) {
+      const wall = new THREE.ExtrudeGeometry(sideProfile(v), { depth: T, bevelEnabled: false, curveSegments: 8 });
+      wall.translate(0, 0, sign > 0 ? W : -W - T);
+      b.add(wall, m.body);
+
+      // Side window glass. A PlaneGeometry already lies in XY facing ±Z, which is exactly the
+      // orientation a window in a side wall needs — it only has to be moved into place.
+      for (const [name, x0, x1, y0, y1] of [
+        ['dinette', 0.95, -0.15, B, B + WINDOW_H],
+        ['kitchen', -1.25, -1.95, B + 0.1, B + WINDOW_H],
+      ] as const) {
+        const geo = new THREE.PlaneGeometry(Math.abs(x1 - x0), y1 - y0);
+        geo.translate((x0 + x1) / 2, (y0 + y1) / 2, sign * (W + T / 2));
+        addPane(`${name}${sign > 0 ? 'Far' : 'Near'}`, geo);
+      }
     }
 
-    // Skirt below the sill, and the aluminium rail that caps the open wall.
+    // Skirt below the sill, and the aluminium rail that caps the open wall. Both survive an
+    // absent panel: they are the floor pan's edge and the rim of the opening, not the wall.
     b.box(4.4, 0.16, 0.06, m.trim, { x: -0.3, y: d.sillY - 0.08, z: sign * (W + T - 0.01) });
     b.box(LIVING_X1 - LIVING_X0, 0.05, 0.09, m.hub, { x: (LIVING_X0 + LIVING_X1) / 2, y: DECK + 0.02, z: sign * (W + T / 2) });
 
-    // Mirror on a long arm, as a van has.
+    // Mirror on a long arm, as a van has. The near one hangs off the wing, which stays.
     b.cylZ(0.016, 0.16, m.trim, { x: 2.16, y: 1.5, z: sign * (W + T + 0.08) });
     b.box(0.05, 0.2, 0.1, m.trim, { x: 2.16, y: 1.42, z: sign * (W + T + 0.16) });
 
     // Headlights and tail lights.
     b.box(0.05, 0.14, 0.3, m.headLight, { x: half - 0.02, y: 0.86, z: sign * 0.74 });
-    b.box(0.04, 0.34, 0.24, m.tailLight, { x: -half + 0.02, y: 1.05, z: sign * 0.78 });
-    b.box(0.04, 0.1, 0.24, m.indicator, { x: -half + 0.02, y: 0.82, z: sign * 0.78 });
+    b.box(0.04, 0.34, 0.24, m.tailLight, { x: tailX, y: 1.05, z: sign * tailZ });
+    b.box(0.04, 0.1, 0.24, m.indicator, { x: tailX, y: 0.82, z: sign * tailZ });
+  }
+
+  // What is left of the near side when its panel goes: two posts under the rail, and a lip over
+  // the rear wheel. The front wheel's arch comes with the wing.
+  if (open) {
+    for (const x of [LIVING_X0 + 0.06, LIVING_X1 - 0.06]) {
+      b.box(0.09, DECK - d.sillY, T, m.body, { x, y: (d.sillY + DECK) / 2, z: -(W + T / 2) });
+    }
+    const wing = new THREE.ExtrudeGeometry(frontWingProfile(v), { depth: T, bevelEnabled: false, curveSegments: 8 });
+    wing.translate(0, 0, -W - T);
+    b.add(wing, m.body);
+    const lip = new THREE.ExtrudeGeometry(archLipProfile(v, -d.wheelbase / 2, 0.1), { depth: T, bevelEnabled: false, curveSegments: 10 });
+    lip.translate(0, 0, -W - T);
+    b.add(lip, m.body);
+    // Rear pillars: the frame of the rear opening, and what the tail lights now sit on.
+    for (const z of [tailZ, -tailZ]) b.box(0.09, DECK - d.sillY, 0.1, m.body, { x: LIVING_X0 - 0.025, y: (d.sillY + DECK) / 2, z });
   }
 
   // Rail across the front and back of the open top, so the box reads as deliberately open.
@@ -132,11 +207,13 @@ export function buildVan(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKit {
   // Cab floor, one step lower.
   b.box(1.5, 0.06, 2 * W - 0.1, m.carpet, { x: 2.05, y: floor - 0.2 });
   b.box(0.24, 0.2, 2 * W - 0.1, m.vinylLight, { x: LIVING_X1 + 0.12, y: floor - 0.1 });
-  // Rear wall — the other one the camera looks through — with the window that faces it, which
-  // is the pane the droplets actually read on.
-  b.box(0.06, DECK - d.sillY, 2 * W, wallMat, { x: LIVING_X0 - 0.03, y: (d.sillY + DECK) / 2 });
-  addPane('rear', paneGeometry(LIVING_X0 - 0.06, B + 0.1, LIVING_X0 - 0.06, B + 0.7, -0.45, 0.45));
-  b.box(0.02, 0.13, 0.5, m.plate, { x: LIVING_X0 - 0.07, y: 0.95 });
+  // Rear wall — the other one the camera looks through — and its window. Both go on a body
+  // tall enough to need the opening; the pillars and the bumper below carry what was on them.
+  if (!open) {
+    b.box(0.06, DECK - d.sillY, 2 * W, m.body, { x: LIVING_X0 - 0.03, y: (d.sillY + DECK) / 2 });
+    addPane('rear', paneGeometry(LIVING_X0 - 0.06, B + 0.1, LIVING_X0 - 0.06, B + 0.7, -0.45, 0.45));
+  }
+  b.box(0.02, 0.13, 0.5, m.plate, { x: LIVING_X0 - 0.07, y: open ? 0.76 : 0.95 });
   b.box(0.1, 0.24, 2 * (W + T), m.trim, { x: LIVING_X0 - 0.06, y: 0.72 });
   b.box(0.1, 0.24, 2 * (W + T), m.trim, { x: half - 0.02, y: 0.72 });
   // Front: windscreen, bonnet, grille.
@@ -154,9 +231,14 @@ export function buildVan(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKit {
   // One vent lid propped open, near the middle of the roofline so it breaks the top edge.
   b.spanBox(0.42, 0.02, -0.22, 0.22, m.glass, { x: 0.52, y: DECK + 0.16, rz: 0.55 });
 
-  // Awning roll on the near side — the most legible camper cue that exists, for three primitives.
-  b.cylX(0.06, 3.4, m.body, { x: -0.8, y: DECK - 0.16, z: -(W + T + 0.07) });
-  for (const x of [1.0, -2.6]) b.box(0.06, 0.12, 0.22, m.trim, { x, y: DECK - 0.24, z: -(W + T + 0.06) });
+  // Awning roll on the near side — the most legible camper cue that exists, for three
+  // primitives. It mounts on the near wall, so it goes when the near wall goes: anything left
+  // on that plane is drawn over the open cabin, and a 3.4 m cylinder reads as a bar across the
+  // middle of the room rather than as a rolled awning. The frame gets away with it; this did not.
+  if (!open) {
+    b.cylX(0.06, 3.4, m.body, { x: -0.8, y: DECK - 0.16, z: -(W + T + 0.07) });
+    for (const x of [1.0, -2.6]) b.box(0.06, 0.12, 0.22, m.trim, { x, y: DECK - 0.24, z: -(W + T + 0.06) });
+  }
 
   // ---------------------------------------------------------------- interior, far side
   // Everything here clears the near wall: y + z > 0.95.
@@ -293,7 +375,8 @@ export function buildVan(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKit {
   // ---------------------------------------------------------------- detail
   b.detail(() => {
     // Two stripes of unequal weight: one reads as a sticker, two read as a 1982 decal set.
-    for (const sign of [1, -1]) {
+    // A decal needs a panel, so the near pair goes with the near panel.
+    for (const sign of open ? [1] : [1, -1]) {
       b.box(4.9, 0.2, 0.004, m.jacket, { x: -0.5, y: 1.12, z: sign * (W + T + 0.006) });
       b.box(4.9, 0.06, 0.004, m.jacket, { x: -0.5, y: 0.98, z: sign * (W + T + 0.006) });
     }
@@ -304,7 +387,8 @@ export function buildVan(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKit {
     };
     curtain(0.78, W - 0.03);
     curtain(-1.32, W - 0.03);
-    curtain(0.78, -W + 0.03);
+    // The near curtain hung in a near window. Both are gone together.
+    if (!open) curtain(0.78, -W + 0.03);
     // A festoon slung under the locker, wired to the dash glow so it comes up with ignition.
     for (let i = 0; i < 8; i++) {
       const t = i / 7;
