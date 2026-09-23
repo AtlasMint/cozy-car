@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Store, WeatherKind, WeatherState } from '../core/store';
 import { QUALITY, SPEED, WEATHER_FX } from '../core/constants';
+import type { Vec3, VehicleSpec } from '../core/vehicles';
 import type { Stage } from '../scene/stage';
 import type { LightingRig } from '../scene/lighting';
 import type { RoadRig } from '../scene/world/road';
@@ -33,6 +34,9 @@ export interface WeatherEffect {
   setIntensity(n: number): void;
   update(dt: number, speed: number): void;
   dispose(): void;
+  /** Push a new exclusion AABB. uCarMin/uCarMax are live Vector3 uniforms, so this is a copy
+   *  and costs no shader recompile. */
+  setShelter?(min: Vec3, max: Vec3): void;
 }
 
 export interface DirectorDeps {
@@ -47,6 +51,10 @@ export interface DirectorDeps {
 export interface WeatherDirector {
   update(dt: number, speed: number, engine: number): WeatherLook;
   onThunder(cb: (strength: number) => void): () => void;
+  /** Rebind the splash emitters, the glass panes and the three shelter boxes. Keeps the
+   *  smoothed `cur` block and the store subscriptions, so the sky and fog do not re-cross-fade
+   *  from the overcast defaults on every vehicle change. */
+  setVehicle(spec: VehicleSpec, vehicle: Vehicle): void;
   /** Force a lightning strike (debugging). */
   strike(): void;
   dispose(): void;
@@ -96,6 +104,7 @@ export function createWeatherDirector(deps: DirectorDeps): WeatherDirector {
   splash.mount(stage.weatherRoot);
   glass.mount(stage.bodyRig);
   snow.mountCaps(stage.slab);
+  for (const fx of [rain, snow, splash]) fx.setShelter?.(car.spec.shelter.min, car.spec.shelter.max);
 
   // Smoothed state.
   const cur: Record<'night' | 'rain' | 'snow' | 'condense' | 'fog' | 'lightning' | 'coldBoost' | 'wet', number> = {
@@ -207,6 +216,11 @@ export function createWeatherDirector(deps: DirectorDeps): WeatherDirector {
       look.coldBoost = cur.coldBoost;
       look.fogDensity = cur.fog;
       return look;
+    },
+    setVehicle(spec, vehicle) {
+      splash.setEmitters(vehicle.wheels.wheels.map((w) => new THREE.Vector3(w.x, 0, w.z)));
+      glass.rebind(vehicle.body.panes);
+      for (const fx of [rain, snow, splash]) fx.setShelter?.(spec.shelter.min, spec.shelter.max);
     },
     onThunder: (cb) => lightning.onThunder(cb),
     strike: () => lightning.strike(),

@@ -1,4 +1,5 @@
 import { AUDIO, MOTION, SPEED } from '../core/constants';
+import { HATCHBACK, type EngineProfile } from '../core/vehicles';
 import { damp } from '../util/math';
 import type { Mixer } from './mixer';
 
@@ -22,6 +23,9 @@ export interface LayerDrivers {
 
 export interface Layers {
   update(dt: number, d: LayerDrivers): void;
+  /** Point the engine at a different vehicle's voice. Must be called BEFORE engineOn flips,
+   *  or the new vehicle cranks with the old one's starter: the store notifies synchronously. */
+  setEngineProfile(p: EngineProfile): void;
   thunder(strength: number): void;
   crank(): void;
   dispose(): void;
@@ -68,7 +72,8 @@ function loopNoise(ctx: AudioContext, brown: boolean): AudioBufferSourceNode {
   return src;
 }
 
-export function createLayers(mixer: Mixer): Layers {
+export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCHBACK.audio): Layers {
+  let profile = initialProfile;
   const layers = new Map<LayerName, Layer>();
   let started = false;
   let rate = 1;
@@ -221,19 +226,22 @@ export function createLayers(mixer: Mixer): Layers {
   };
 
   return {
+    setEngineProfile(p) {
+      profile = p;
+    },
     update(dt, d) {
       if (!started) start();
       const ctx = mixer.context;
       if (!ctx || ctx.state !== 'running') return;
       const L = AUDIO.LEVELS;
       const speedK = Math.min(1, d.speed / SPEED.FOCUS);
-      setLevel('engine', L.engine * d.engine * (0.8 + 0.2 * d.blend), dt);
-      setLevel('roadNoise', L.roadNoise * speedK * d.engine, dt);
+      setLevel('engine', L.engine * profile.gain.engine * d.engine * (0.8 + 0.2 * d.blend), dt);
+      setLevel('roadNoise', L.roadNoise * profile.gain.road * speedK * d.engine, dt);
       setLevel('rain', L.rain * d.rain, dt);
-      setLevel('wind', L.wind * (Math.min(1, d.windKmh / 40) * 0.6 + 0.5 * speedK), dt);
+      setLevel('wind', L.wind * profile.gain.wind * (Math.min(1, d.windKmh / 40) * 0.6 + 0.5 * speedK), dt);
       setLevel('ambience', L.ambience * (1 - 0.5 * d.night), dt);
 
-      const targetRate = 1 + (AUDIO.FOCUS_RATE - 1) * d.blend;
+      const targetRate = 1 + (profile.focusRate - 1) * d.blend;
       rate = damp(rate, targetRate, 1.6, dt);
       const engine = layers.get('engine');
       if (engine?.source) engine.source.playbackRate.setTargetAtTime(rate, ctx.currentTime, 0.1);
@@ -267,8 +275,8 @@ export function createLayers(mixer: Mixer): Layers {
       // Starter motor: a rising saw with a click train, 0.7 s, then the engine catches.
       const osc = ctx.createOscillator();
       osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(28, ctx.currentTime);
-      osc.frequency.linearRampToValueAtTime(62, ctx.currentTime + 0.7);
+      osc.frequency.setValueAtTime(profile.crank.from, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(profile.crank.to, ctx.currentTime + profile.crank.ms / 1000);
       const lp = ctx.createBiquadFilter();
       lp.type = 'lowpass';
       lp.frequency.value = 500;

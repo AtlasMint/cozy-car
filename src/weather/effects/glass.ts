@@ -12,6 +12,11 @@ import type { WeatherEffect } from '../director';
 export interface GlassEffect extends WeatherEffect {
   setCondensation(n: number): void;
   setDrift(v: THREE.Vector2): void;
+  /** Unparent the old overlays and build fresh ones on the new panes, reusing the shared
+   *  material and preserving uDrops/uCondense/uDrift/uTime so a rainy scene stays rainy.
+   *  Mutates `overlays` in place — visible() closes over it. Disposes no geometry: the panes
+   *  own it. dispose() cannot be used as a swap step; it frees the one shared material. */
+  rebind(panes: GlassPane[]): void;
 }
 
 export function createGlass(panes: GlassPane[]): GlassEffect {
@@ -82,7 +87,24 @@ export function createGlass(panes: GlassPane[]): GlassEffect {
     const on = uniforms.uDrops.value > 0.005 || uniforms.uCondense.value > 0.005;
     for (const o of overlays) o.visible = on;
   };
+  const attach = (list: GlassPane[]) => {
+    for (const pane of list) {
+      const mesh = new THREE.Mesh(pane.mesh.geometry, material);
+      mesh.name = `droplets:${pane.name}`;
+      mesh.renderOrder = 12;
+      mesh.visible = false;
+      pane.mesh.add(mesh);
+      overlays.push(mesh);
+    }
+  };
+
   return {
+    rebind(panes) {
+      for (const o of overlays) o.parent?.remove(o);
+      overlays.length = 0;
+      attach(panes);
+      visible();
+    },
     mount() {
       /* overlays are children of the panes already */
     },

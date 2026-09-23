@@ -54,7 +54,14 @@ stage.slab.add(scenery.group);
 const lighting = createLighting();
 stage.scene.add(lighting.group);
 
-const car = createVehicle(stage);
+const bootSpec = VEHICLES.hatchback;
+const car = createVehicle(stage, bootSpec);
+iso.setFraming({
+  target: new THREE.Vector3(...bootSpec.camera.target),
+  viewSize: bootSpec.camera.viewSize,
+  minViewWidth: bootSpec.camera.minViewWidth,
+});
+lighting.setVehicle(bootSpec);
 
 const overlay = createOverlay(store);
 createModeToggle(overlay, store);
@@ -67,7 +74,7 @@ weather.start();
 
 // Sound: one context, unlocked by the start gesture; layers follow the same drivers as the scene.
 const mixer = createMixer();
-const layers = createLayers(mixer);
+const layers = createLayers(mixer, bootSpec.audio);
 mixer.setVolume(store.get().masterVolume);
 store.subscribe('masterVolume', (v) => mixer.setVolume(v));
 director.onThunder((strength) => layers.thunder(strength));
@@ -233,5 +240,5 @@ if (import.meta.hot) {
   });
 }
 
-(window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso, car, lighting, scenery, road, weather, director, renderer: rig.renderer, mixer, layers, registry, createVehicle, VEHICLES };
+(window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso, car, lighting, scenery, road, weather, director, renderer: rig.renderer, mixer, layers, registry, raycast, createVehicle, VEHICLES };
 (window as unknown as { __shotgunStats: unknown }).__shotgunStats = stats;

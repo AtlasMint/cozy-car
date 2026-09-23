@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { WEATHER_FX } from '../core/constants';
+import type { VehicleSpec } from '../core/vehicles';
 
 /**
  * Lighting rig driven by the weather director. Exactly one light casts shadows (the key),
@@ -29,6 +30,8 @@ export interface LightingRig {
   setIgnition(k: number): void;
   /** 0..1 headlight cones and ground pool (night × ignition). */
   setHeadlights(k: number): void;
+  /** Move every light and the shadow frustum onto a different vehicle. */
+  setVehicle(spec: VehicleSpec): void;
   updateStreetlights(heads: THREE.Vector3[], count: number, night: number): void;
   dispose(): void;
 }
@@ -77,7 +80,14 @@ export function createLighting(): LightingRig {
   const dash = new THREE.PointLight('#C9884A', 0, 1.6, 1.8);
   dash.position.set(0.5, 0.92, 0.1);
   dash.name = 'dashLight';
-  group.add(cabin, dash);
+  // A third interior light, allocated even for vehicles that leave it at intensity 0. Changing
+  // the point-light count changes NUM_POINT_LIGHTS, which invalidates the program cache for
+  // every lit material in the scene — road, slab, scenery, driver and all three bodies would
+  // recompile on every swap. The count is fixed at boot and never varies per vehicle.
+  const living = new THREE.PointLight('#FFB86B', 0, 4, 1.6);
+  living.position.set(-1.2, 1.5, 0.1);
+  living.name = 'livingLight';
+  group.add(cabin, dash, living);
 
   // Headlight cones: additive, unlit, faded along their length. Both headlights throw a
   // cone even though the near one is not drawn — the car is whole.
@@ -115,6 +125,7 @@ export function createLighting(): LightingRig {
       }
     `,
   });
+  let coneGeometry = coneGeom;
   const cones: THREE.Mesh[] = [];
   for (const z of [-0.56, 0.56]) {
     const m = new THREE.Mesh(coneGeom, coneMat);
@@ -145,9 +156,11 @@ export function createLighting(): LightingRig {
 
   let ignition = 0;
   let night = 0;
+  let livingScale = 0;
   const applyCabin = () => {
     cabin.intensity = 0.7 + 2.3 * ignition + 1.6 * ignition * night;
     dash.intensity = (1.3 + 0.8 * night) * ignition;
+    living.intensity = livingScale * (0.5 + 1.8 * ignition + 1.2 * ignition * night);
   };
 
   return {
@@ -169,6 +182,43 @@ export function createLighting(): LightingRig {
       ignition = k;
       applyCabin();
     },
+    setVehicle(spec) {
+      const a = spec.anchors;
+      cabin.position.set(...a.cabinLight);
+      cabin.distance = a.cabinDistance;
+      dash.position.set(...a.dashLight);
+      dash.distance = a.dashDistance;
+      if (a.livingLight) {
+        living.position.set(...a.livingLight);
+        living.distance = a.livingDistance;
+        livingScale = 1;
+      } else {
+        livingScale = 0;
+      }
+      applyCabin();
+
+      // Headlight cones: the geometry bakes length and radius, so rebuild the two of them.
+      const next = new THREE.ConeGeometry(a.coneRadius, a.coneLength, 18, 1, true);
+      next.rotateZ(Math.PI / 2 - 0.06);
+      for (const c of cones) {
+        c.geometry = next;
+        c.position.set(a.headlight.x + a.coneLength / 2 - 0.1, a.headlight.y - Math.sin(0.06) * a.coneLength * 0.5, Math.sign(c.position.z || 1) * a.headlight.z);
+      }
+      coneGeometry.dispose();
+      coneGeometry = next;
+
+      pool.scale.set(a.pool.w / 7.5, 1, a.pool.d / 3.6);
+      pool.position.set(a.pool.x, 0.02, 0);
+
+      key.shadow.camera.left = -a.shadowOrtho;
+      key.shadow.camera.right = a.shadowOrtho;
+      key.shadow.camera.top = a.shadowOrtho;
+      key.shadow.camera.bottom = -a.shadowOrtho;
+      // Writing the bounds is a silent no-op without this.
+      key.shadow.camera.updateProjectionMatrix();
+      key.shadow.radius = a.shadowRadius;
+      key.shadow.normalBias = a.shadowNormalBias;
+    },
     setHeadlights(k) {
       coneUniforms.uK.value = k;
       poolMat.opacity = k * H.poolAlpha;
@@ -189,7 +239,7 @@ export function createLighting(): LightingRig {
     },
     dispose() {
       key.shadow.dispose();
-      coneGeom.dispose();
+      coneGeometry.dispose();
       coneMat.dispose();
       poolGeom.dispose();
       poolMat.dispose();

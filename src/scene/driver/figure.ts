@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { VehicleSpec } from '../../core/vehicles';
+import type { DriverPose, VehicleSpec } from '../../core/vehicles';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { occupantMaterials } from '../car/parts';
 
@@ -13,6 +13,8 @@ import { occupantMaterials } from '../car/parts';
  * → handL/R. Hand *targets* are parented to the steering wheel node so the hands follow it.
  */
 export interface DriverFigure {
+  /** The pose block this figure was built from. */
+  pose: DriverPose;
   root: THREE.Group;
   hips: THREE.Group;
   torso: THREE.Group;
@@ -96,13 +98,14 @@ export function createDriverFigure(wheelNode: THREE.Object3D, parent: THREE.Obje
 
   const hips = new THREE.Group();
   hips.name = 'hips';
-  hips.position.set(0.16, 0.6, v.cabin.driverZ);
+  const P = v.pose;
+  hips.position.set(P.hips[0], P.hips[1], P.hips[2]);
   root.add(hips);
   hips.add(mesh(g(new THREE.SphereGeometry(0.15, 12, 8)).scale(1.1, 0.7, 1.25), m.denim));
 
   const torso = new THREE.Group();
   torso.name = 'torso';
-  torso.rotation.z = 0.15; // leaning back into the seat
+  torso.rotation.z = P.torsoLean; // leaning back into the seat
   hips.add(torso);
   // Torso capsule and shoulder caps fused into one hoodie mesh; the hood bunched at the
   // back of the neck and the drawstrings ride along as their own small meshes.
@@ -162,10 +165,10 @@ export function createDriverFigure(wheelNode: THREE.Object3D, parent: THREE.Obje
   wheelNode.updateWorldMatrix(true, false);
   const gripL = new THREE.Object3D();
   gripL.name = 'gripL';
-  gripL.position.copy(wheelNode.worldToLocal(gripWorld(120)));
+  gripL.position.copy(wheelNode.worldToLocal(gripWorld(P.gripAngles[0])));
   const gripR = new THREE.Object3D();
   gripR.name = 'gripR';
-  gripR.position.copy(wheelNode.worldToLocal(gripWorld(60)));
+  gripR.position.copy(wheelNode.worldToLocal(gripWorld(P.gripAngles[1])));
   wheelNode.add(gripL, gripR);
 
   // Arms: two aimed segments each, joints as spheres, hands as slightly flattened spheres.
@@ -194,15 +197,16 @@ export function createDriverFigure(wheelNode: THREE.Object3D, parent: THREE.Obje
     geom.applyMatrix4(tmpObj.matrix);
     legParts.push({ geom });
   };
-  for (const dz of [-0.09, 0.09]) {
-    const z = v.cabin.driverZ + dz;
-    placed(new THREE.CylinderGeometry(0.075, 0.07, 1, 10), new THREE.Vector3(0.18, 0.63, z), new THREE.Vector3(0.52, 0.64, z));
-    legParts.push({ geom: new THREE.SphereGeometry(0.072, 10, 8), p: { x: 0.52, y: 0.64, z } });
-    placed(new THREE.CylinderGeometry(0.06, 0.055, 1, 10), new THREE.Vector3(0.52, 0.64, z), new THREE.Vector3(0.7, 0.42, z));
+  for (const dz of [-P.legSplay, P.legSplay]) {
+    const z = P.hips[2] + dz;
+    placed(new THREE.CylinderGeometry(0.075, 0.07, 1, 10), new THREE.Vector3(P.hips[0] + 0.02, P.hips[1] + 0.03, z), new THREE.Vector3(P.knee[0], P.knee[1], z));
+    legParts.push({ geom: new THREE.SphereGeometry(0.072, 10, 8), p: { x: P.knee[0], y: P.knee[1], z } });
+    placed(new THREE.CylinderGeometry(0.06, 0.055, 1, 10), new THREE.Vector3(P.knee[0], P.knee[1], z), new THREE.Vector3(P.foot[0], P.foot[1], z));
   }
   fuse(root, m.denim, legParts);
 
   const figure: DriverFigure = {
+    pose: P,
     root,
     hips,
     torso,

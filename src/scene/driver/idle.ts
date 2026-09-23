@@ -51,9 +51,10 @@ const smooth = (t: number) => {
 };
 
 export function createDriverIdle(figure: DriverFigure): DriverIdle {
-  const cup = new THREE.Vector3(...DRIVER.CUP_POSITION);
+  const P = figure.pose;
+  const cup = new THREE.Vector3(...P.cup);
   const mouth = new THREE.Vector3();
-  const gearKnob = new THREE.Vector3(...DRIVER.GEAR_KNOB);
+  const gearKnob = new THREE.Vector3(...(P.gearKnob ?? [0, 0, 0]));
   const neckBack = new THREE.Vector3();
   const tmp = new THREE.Vector3();
 
@@ -63,7 +64,7 @@ export function createDriverIdle(figure: DriverFigure): DriverIdle {
       weight: 3,
       duration: 4.5,
       apply(k, pose) {
-        pose.headYaw += -0.85 * pulse(k, 0.25, 0.7);
+        pose.headYaw += P.headTurnYaw * pulse(k, 0.25, 0.7);
         pose.headPitch += 0.06 * pulse(k, 0.25, 0.7);
       },
     },
@@ -138,7 +139,9 @@ export function createDriverIdle(figure: DriverFigure): DriverIdle {
   let nextGestureIn = randRange(DRIVER.GESTURE_GAP_MIN * 0.4, DRIVER.GESTURE_GAP_MIN);
 
   const pickGesture = (mode: Mode): Gesture => {
-    const pool = gestures.filter((g) => !(g.chillOnly && mode === 'focus') && !(g.focusOnly && mode === 'chill'));
+    const pool = gestures.filter(
+      (g) => !(g.chillOnly && mode === 'focus') && !(g.focusOnly && mode === 'chill') && !(g.name === 'handToGear' && !P.gearKnob),
+    );
     const total = pool.reduce((s, g) => s + g.weight, 0);
     let r = Math.random() * total;
     for (const g of pool) {
@@ -211,7 +214,7 @@ export function createDriverIdle(figure: DriverFigure): DriverIdle {
 
       // Posture: chill slumps back and drifts toward the window; focus sits up and faces forward.
       const p = posture.step(mode === 'focus' ? 1 : 0, dt, DRIVER.POSTURE_OMEGA);
-      const slump = (1 - p) * DRIVER.CHILL_SLUMP;
+      const slump = (1 - p) * DRIVER.CHILL_SLUMP * P.slumpScale;
       const chillDrift = (1 - p) * -0.12 * (0.5 + 0.5 * Math.sin(elapsed * 0.11));
       pose.torsoLean += slump;
       pose.headYaw += chillDrift;

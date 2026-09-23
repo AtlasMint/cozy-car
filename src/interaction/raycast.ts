@@ -15,6 +15,9 @@ export interface Raycast {
   /** Screen position of the last pointer, CSS px. */
   readonly pointer: { x: number; y: number };
   update(): void;
+  /** Drop the hover latch. A swap performed while the pointer rests on the radio would
+   *  otherwise leave the new radio's glow dead, because `hovered` never changed. */
+  clearHover(): void;
   dispose(): void;
 }
 
@@ -101,6 +104,9 @@ export function createRaycast(
       return hovered;
     },
     pointer,
+    clearHover() {
+      setHover(null);
+    },
     update() {
       const now = performance.now();
       if (!dirty || now - lastCast < 1000 / INTERACTION.HOVER_HZ) return;

@@ -116,6 +116,10 @@ export function createSnow(quality: 'low' | 'high'): SnowEffect {
     mountCaps(slab) {
       slab.add(nearCap, farCap);
     },
+    setShelter(min, max) {
+      uniforms.uCarMin.value.set(min[0], min[1], min[2]);
+      uniforms.uCarMax.value.set(max[0], max[1], max[2]);
+    },
     setIntensity(n) {
       uniforms.uIntensity.value = n;
       mesh.visible = n > 0.005;

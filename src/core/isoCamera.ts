@@ -26,6 +26,9 @@ export interface IsoCamera {
   /** Return to the default pose. */
   reset(ms: number): Promise<void>;
   resize(width: number, height: number): void;
+  /** Re-frame for a different vehicle. Updates `home` too, so a later Escape from the radio
+   *  returns to the NEW vehicle's pose rather than the old one's. */
+  setFraming(f: { target: THREE.Vector3; viewSize: number; minViewWidth: number }): void;
   update(dt: number): void;
   /** World point → normalized device coords. */
   project(p: THREE.Vector3, out: THREE.Vector2): THREE.Vector2;
@@ -39,6 +42,8 @@ export function createIsoCamera(): IsoCamera {
   const tmp = new THREE.Vector3();
 
   let viewSize: number = CAMERA.VIEW_SIZE;
+  let baseViewSize: number = CAMERA.VIEW_SIZE;
+  let minViewWidth: number = CAMERA.MIN_VIEW_WIDTH;
   let aspect = 16 / 9;
   let zoom = 1;
   let pointerX = 0;
@@ -50,7 +55,7 @@ export function createIsoCamera(): IsoCamera {
   let tween: Tween | null = null;
 
   const applyFrustum = () => {
-    viewSize = Math.max(CAMERA.VIEW_SIZE, CAMERA.MIN_VIEW_WIDTH / aspect);
+    viewSize = Math.max(baseViewSize, minViewWidth / aspect);
     const halfH = viewSize / 2;
     const halfW = halfH * aspect;
     camera.left = -halfW;
@@ -113,6 +118,12 @@ export function createIsoCamera(): IsoCamera {
     frame: (t, z, ms, az = 0) => startTween(t, z, ms, az),
     reset(ms) {
       return startTween(home, 1, ms, 0);
+    },
+    setFraming(f) {
+      home.copy(f.target);
+      baseViewSize = f.viewSize;
+      minViewWidth = f.minViewWidth;
+      applyFrustum();
     },
     resize(width, height) {
       aspect = Math.max(0.2, width / Math.max(1, height));

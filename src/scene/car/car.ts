@@ -36,6 +36,7 @@ export interface VehicleInputs {
  */
 export interface Vehicle {
   id: VehicleId;
+  spec: VehicleSpec;
   group: THREE.Group;
   body: BodyKit;
   radio: RadioRig;
@@ -85,6 +86,7 @@ export function createVehicle(stage: Stage, v: VehicleSpec = HATCHBACK): Vehicle
 
   return {
     id: v.id,
+    spec: v,
     update(inp) {
       const out = rig.update({
         dt: inp.dt,

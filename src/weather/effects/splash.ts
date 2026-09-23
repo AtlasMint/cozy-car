@@ -9,7 +9,11 @@ import { CAMERA_AXES_GLSL, OFFSCREEN_GLSL, instancedQuads } from './instanced';
  * wheel spray: a short cone of fast, short-lived particles trailing each wheel. The rear wheels
  * throw theirs straight toward the camera.
  */
-export function createSplash(wheelPositions: THREE.Vector3[]): WeatherEffect {
+export interface SplashEffect extends WeatherEffect {
+  setEmitters(positions: THREE.Vector3[]): void;
+}
+
+export function createSplash(wheelPositions: THREE.Vector3[]): SplashEffect {
   const P = WEATHER_FX.SPLASH;
 
   // --- Rings
@@ -147,6 +151,19 @@ export function createSplash(wheelPositions: THREE.Vector3[]): WeatherEffect {
   return {
     mount(parent) {
       parent.add(rings, spray);
+    },
+    setShelter(min, max) {
+      ringUniforms.uCarMin.value.set(min[0], min[1], min[2]);
+      ringUniforms.uCarMax.value.set(max[0], max[1], max[2]);
+    },
+    /** Copy four wheel ground positions into uEmitters. The array length is fixed at 4: the
+     *  GLSL declares vec3 uEmitters[4], the instance count is baked and aEmitter is a baked
+     *  attribute, so every vehicle has exactly four wheels. */
+    setEmitters(positions: THREE.Vector3[]) {
+      for (let i = 0; i < 4; i++) {
+        const p = positions[i];
+        if (p) (sprayUniforms.uEmitters.value[i] as THREE.Vector3).copy(p);
+      }
     },
     setIntensity(n) {
       intensity = n;
