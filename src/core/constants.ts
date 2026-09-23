@@ -275,6 +275,8 @@ export const INTERACTION = {
   HOVER_HZ: 20,
   CLICK_SLOP_PX: 6,
   PUSH_IN_MS: 900,
+  /** Half a vehicle swap: the screen fades to black over this, and back over it again. */
+  SWAP_FADE_MS: 280,
   RADIO_ZOOM: 3.2,
   /** Emissive lift on hover. */
   HOVER_EMISSIVE: 0.35,

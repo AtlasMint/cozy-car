@@ -36,6 +36,9 @@ const CSS = /* css */ `
 #overlay .ui-centre { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
 #overlay .ui-panels { position: absolute; inset: 0; pointer-events: none; }
 #overlay .ui-panels > * { pointer-events: auto; }
+/* Scene transitions. Duration is written from JS; the element is the first child of #overlay
+   so every corner control paints over it. */
+#overlay .ui-curtain { position: absolute; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity 260ms ease; }
 
 #overlay button, #overlay input, #overlay select { font: inherit; color: inherit; }
 #overlay button { cursor: pointer; border: 1px solid var(--ui-line); background: var(--ui-bg); color: var(--ui-ink); border-radius: 999px; padding: 9px 16px; font-weight: 500; letter-spacing: 0.005em; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); transition: background-color 160ms ease, border-color 160ms ease; }
@@ -46,8 +49,12 @@ const CSS = /* css */ `
 #overlay .ui-card { background: var(--ui-bg); border: 1px solid var(--ui-line); border-radius: var(--ui-radius); padding: 10px 14px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 #overlay .ui-check { display: inline-flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 999px; background: var(--ui-bg); border: 1px solid var(--ui-line); cursor: pointer; font-weight: 500; user-select: none; }
 #overlay .ui-check input { accent-color: var(--ui-accent); width: 15px; height: 15px; margin: 0; }
-#overlay .ui-range { display: inline-flex; align-items: center; gap: 10px; padding: 9px 14px; border-radius: 999px; background: var(--ui-bg); border: 1px solid var(--ui-line); }
+#overlay .ui-range { display: inline-flex; align-items: center; gap: 6px; padding: 4px 14px 4px 4px; border-radius: 999px; background: var(--ui-bg); border: 1px solid var(--ui-line); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 #overlay .ui-range input[type=range] { width: 96px; accent-color: var(--ui-accent); margin: 0; }
+/* A borderless round button that holds an icon instead of a word. */
+#overlay .ui-icon { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; background: transparent; border-radius: 999px; backdrop-filter: none; -webkit-backdrop-filter: none; }
+#overlay .ui-icon:hover { background: rgba(242, 227, 201, 0.12); border-color: transparent; }
+#overlay .ui-icon svg { display: block; }
 #overlay .ui-seg { display: inline-flex; border: 1px solid var(--ui-line); border-radius: 999px; background: var(--ui-bg); padding: 3px; gap: 2px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 #overlay .ui-seg button { border: 0; background: transparent; padding: 7px 14px; }
 #overlay .ui-seg button:hover { background: rgba(242,227,201,0.1); }
@@ -69,7 +76,9 @@ const CSS = /* css */ `
   #overlay { font-size: 13px; }
   #overlay .ui-corner.left { top: max(12px, env(safe-area-inset-top)); bottom: auto; left: 12px; align-items: flex-start; }
   #overlay .ui-corner.right { left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); flex-direction: row; flex-wrap: wrap-reverse; justify-content: flex-end; gap: 6px; }
-  #overlay .ui-corner.right button, #overlay .ui-corner.right .ui-check, #overlay .ui-corner.right .ui-range { padding: 7px 10px; }
+  #overlay .ui-corner.right button, #overlay .ui-corner.right .ui-check { padding: 7px 10px; }
+  #overlay .ui-corner.right .ui-range { padding: 3px 10px 3px 3px; }
+  #overlay .ui-icon { width: 26px; height: 26px; }
   #overlay .ui-seg button { padding: 6px 10px; }
   #overlay .ui-range input[type=range] { width: 64px; }
   #overlay .start-inner { transform: translateY(24vh); }

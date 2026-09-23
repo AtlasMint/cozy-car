@@ -13,6 +13,7 @@ import { VEHICLES, type VehicleSpec } from './core/vehicles';
 import { createSpring } from './motion/spring';
 import { AUDIO, INTERACTION, MOTION, QUALITY, RENDER, SPEED } from './core/constants';
 import { createOverlay } from './ui/overlay';
+import { createCurtain } from './ui/curtain';
 import { createStartScreen } from './ui/startScreen';
 import { createModeToggle } from './ui/modeToggle';
 import { createVehiclePicker, parseVehicleHash } from './ui/vehiclePicker';
@@ -68,6 +69,7 @@ iso.setFraming({
 lighting.setVehicle(bootSpec);
 
 const overlay = createOverlay(store);
+const curtain = createCurtain(overlay);
 createModeToggle(overlay, store);
 const picker = createVehiclePicker(overlay, store);
 createVolumeControl(overlay, store);
@@ -163,13 +165,14 @@ let probeDone = qualityWasChosen || coarsePointer;
 const debug = createDebugStats(overlay);
 
 /**
- * Switching vehicles. About 1.1 s, camera-led: the camera starts sliding to the new framing,
- * the vehicle is exchanged mid-move where a one-frame pop is invisible, and the arriving body
- * settles onto its springs. The full crank is reserved for the first ignition of a session.
+ * Switching vehicles, behind a curtain. The screen fades to black and only then does anything
+ * move: the camera jumps to the new framing, the body is built or revealed, its programs are
+ * linked, and one frame is drawn. What the fade back reveals is therefore always a finished
+ * vehicle. The full crank is still reserved for the first ignition of a session.
  *
  * Built vehicles are cached, hidden, for the rest of the session: three hidden subtrees cost
  * one visibility test each in projectObject and keep their shader programs alive, so every
- * swap after the first is recompile-free.
+ * swap after the first has nothing left to link.
  */
 const cache = new Map<VehicleId, Vehicle>([[bootId, car]]);
 // Tracked separately from car.id: until every vehicle has its own spec, two ids can share one.
@@ -177,7 +180,23 @@ let currentVehicleId: VehicleId = bootId;
 let swapping = false;
 let pendingVehicle: VehicleId | null = null;
 let lastLights = 0;
-const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+/**
+ * Resolves once the scene has actually reached the screen: one frame to render it, a second to
+ * be sure that frame was presented. The timeout is there because a hidden tab stops
+ * requestAnimationFrame entirely, and a swap must not be able to strand the curtain.
+ */
+const drawn = () =>
+  new Promise<void>((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      resolve();
+    };
+    requestAnimationFrame(() => requestAnimationFrame(finish));
+    setTimeout(finish, 1000);
+  });
 
 async function swapVehicle(id: VehicleId): Promise<void> {
   if (currentVehicleId === id) return;
@@ -189,8 +208,7 @@ async function swapVehicle(id: VehicleId): Promise<void> {
   picker.setBusy(true);
   const spec = VEHICLES[id];
   const st = store.get();
-  const reduced = st.reducedMotion;
-  const ms = reduced ? 0 : INTERACTION.PUSH_IN_MS;
+  const fade = st.reducedMotion ? INTERACTION.SWAP_FADE_MS / 2 : INTERACTION.SWAP_FADE_MS;
 
   // Let go of everything that holds the outgoing vehicle.
   store.set({ focusedObject: null });
@@ -198,29 +216,25 @@ async function swapVehicle(id: VehicleId): Promise<void> {
   delete car.radio.hitbox.userData.interactableId;
   raycast.clearHover();
 
+  await curtain.cover(fade);
+
+  // Nothing below this line is on screen, so the camera jumps instead of sliding.
   iso.setFraming({
     target: new THREE.Vector3(...spec.camera.target),
     viewSize: spec.camera.viewSize,
     minViewWidth: spec.camera.minViewWidth,
   });
-  // One tween straight from wherever the camera is to the new pose. Do not reset() first:
-  // startTween resolves the previous promise early and two tweens would fight.
-  void iso.frame(new THREE.Vector3(...spec.camera.target), 1, ms);
+  void iso.reset(0);
 
-  // Build or reuse, hidden, then warm its programs before anything is shown.
   let next = cache.get(id);
   if (!next) {
     next = createVehicle(stage, spec);
     cache.set(id, next);
   }
-  next.setVisible(false);
   next.setQuality(st.quality);
   next.seedLights(lastLights);
-  rig.renderer.compile(stage.scene, iso.camera);
 
-  await wait(ms / 2);
-
-  // The exchange, mid-move.
+  // The exchange.
   car.setVisible(false);
   next.setVisible(true);
   car = next;
@@ -245,7 +259,13 @@ async function swapVehicle(id: VehicleId): Promise<void> {
     probeN = 0;
   }
 
-  await wait(ms / 2 + (reduced ? 0 : 200));
+  // "Loaded" means linked and drawn. compile() walks the scene with traverseVisible, so this
+  // has to follow the exchange rather than precede it — warming the programs of the body that
+  // is on its way out warms nothing at all.
+  await rig.renderer.compileAsync(stage.scene, iso.camera);
+  await drawn();
+
+  await curtain.reveal(fade);
   swapping = false;
   picker.setBusy(false);
   if (pendingVehicle) {
