@@ -6,7 +6,7 @@
 // Bun.serve with a static fallback. Run with `bun --hot ./dev.ts` (the `dev` script).
 import index from './index.html';
 
-const port = Number(process.env.PORT ?? 3000);
+const port = Number(process.env.PORT ?? 5555);
 const publicDir = new URL('./public/', import.meta.url);
 
 Bun.serve({
