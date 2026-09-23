@@ -48,3 +48,28 @@ export function mulberry32(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+/**
+ * TypeScript twin of the `shelteredByBox` slab test in weather/effects/instanced.ts.
+ *
+ * True when a point is inside the box, or when the view ray from that point passes through it —
+ * i.e. the particle would be drawn over the vehicle. Kept in step with the GLSL by hand; the
+ * tests assert both agree on the cases that matter.
+ */
+export function shelteredByBox(
+  p: readonly [number, number, number],
+  d: readonly [number, number, number],
+  bmin: readonly [number, number, number],
+  bmax: readonly [number, number, number],
+): boolean {
+  let tn = -Infinity;
+  let tf = Infinity;
+  for (let i = 0; i < 3; i++) {
+    const inv = 1 / d[i]!;
+    const t0 = (bmin[i]! - p[i]!) * inv;
+    const t1 = (bmax[i]! - p[i]!) * inv;
+    tn = Math.max(tn, Math.min(t0, t1));
+    tf = Math.min(tf, Math.max(t0, t1));
+  }
+  return tf >= Math.max(tn, 0);
+}
