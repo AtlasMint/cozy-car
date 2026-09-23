@@ -128,6 +128,7 @@ if (!coarsePointer) {
 // Quality: derived from a startup frame-time probe unless the user has chosen; low quality
 // drops the pixel ratio, shrinks the shadow map and thins precipitation (see director).
 const applyQuality = (q: 'low' | 'high') => {
+  car.setQuality(q);
   rig.renderer.setPixelRatio(q === 'low' ? 1 : Math.min(window.devicePixelRatio, RENDER.MAX_PIXEL_RATIO));
   const size = q === 'low' ? QUALITY.SHADOW_MAP_LOW : QUALITY.SHADOW_MAP_HIGH;
   if (lighting.key.shadow.mapSize.x !== size) {

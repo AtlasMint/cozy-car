@@ -75,6 +75,17 @@ export function createMaterials(paint: PaintSpec) {
 }
 
 export type CarMaterials = ReturnType<typeof createMaterials>;
+
+/**
+ * Materials whose meshes never cast a shadow. Decals, dials and the LCD are flat or tiny and
+ * sit inside the cabin, so their shadow pass is pure cost. The cabin is open, so anything with
+ * real volume — seats, dash, console — keeps casting.
+ */
+const NO_SHADOW: ReadonlySet<string> = new Set(['lcd', 'needle', 'dialFace', 'plate', 'sticker', 'paper', 'cardboard', 'freshener', 'glass']);
+
+export function castsShadow(key: string): boolean {
+  return !NO_SHADOW.has(key);
+}
 export type MaterialKey = keyof Omit<CarMaterials, 'dispose'>;
 
 /**
@@ -105,6 +116,9 @@ export function disposeOccupantMaterials(): void {
   for (const mat of Object.values(occupant)) mat.dispose();
   occupant = null;
 }
+
+/** Parts marked `detail` go into a second group the low-quality tier can simply hide. */
+export type Detail = boolean;
 
 export interface Place {
   x?: number;
@@ -159,6 +173,8 @@ export function tilted(pivotX: number, pivotY: number, offX: number, offY: numbe
  */
 export class Builder {
   private buckets = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  private detailBuckets = new Map<THREE.Material, THREE.BufferGeometry[]>();
+  private detailMode = false;
   private dynamic: THREE.Object3D[] = [];
   private owned: THREE.BufferGeometry[] = [];
 
@@ -167,12 +183,28 @@ export class Builder {
 
   add(g: THREE.BufferGeometry, mat: THREE.Material, p?: Place): void {
     if (p) placeGeometry(g, p);
-    let list = this.buckets.get(mat);
+    const buckets = this.detailMode ? this.detailBuckets : this.buckets;
+    let list = buckets.get(mat);
     if (!list) {
       list = [];
-      this.buckets.set(mat, list);
+      buckets.set(mat, list);
     }
     list.push(g);
+  }
+
+  /**
+   * Everything added inside `fn` is detail: clutter, decals and props that carry character but
+   * no silhouette. The low-quality tier hides the whole group at runtime, which is free and
+   * reversible — the geometry is merged at build time and cannot be un-merged later.
+   */
+  detail(fn: () => void): void {
+    const was = this.detailMode;
+    this.detailMode = true;
+    try {
+      fn();
+    } finally {
+      this.detailMode = was;
+    }
   }
 
   box(w: number, h: number, d: number, mat: THREE.Material, p: Place = {}): void {
@@ -216,30 +248,41 @@ export class Builder {
     this.owned.push(...geometries);
   }
 
-  finish(name: string): { group: THREE.Group; dispose(): void } {
+  finish(name: string): { group: THREE.Group; detailGroup: THREE.Group; dispose(): void } {
     const group = new THREE.Group();
     group.name = name;
+    const detailGroup = new THREE.Group();
+    detailGroup.name = `${name}:detail`;
+    group.add(detailGroup);
     const merged: THREE.BufferGeometry[] = [];
-    for (const [mat, list] of this.buckets) {
-      const nonIndexed = list.map((g) => (g.index ? g.toNonIndexed() : g));
-      const geometry = mergeGeometries(nonIndexed, false);
-      for (const g of list) g.dispose();
-      for (const g of nonIndexed) if (!list.includes(g)) g.dispose();
-      // A failed merge means a body handed in a geometry with mismatched attributes. The
-      // sources are already disposed by here, so continuing would silently drop a whole
-      // material; that is a build bug, not a recoverable condition.
-      if (!geometry) throw new Error(`Builder.finish: mergeGeometries failed for material "${this.matName(mat)}" in "${name}"`);
-      const mesh = new THREE.Mesh(geometry, mat);
-      mesh.castShadow = mat !== this.mats.glass;
-      mesh.receiveShadow = true;
-      mesh.name = `${name}:${this.matName(mat)}`;
-      group.add(mesh);
-      merged.push(geometry);
-    }
+
+    const mergeInto = (buckets: Map<THREE.Material, THREE.BufferGeometry[]>, target: THREE.Group) => {
+      for (const [mat, list] of buckets) {
+        const nonIndexed = list.map((g) => (g.index ? g.toNonIndexed() : g));
+        const geometry = mergeGeometries(nonIndexed, false);
+        for (const g of list) g.dispose();
+        for (const g of nonIndexed) if (!list.includes(g)) g.dispose();
+        // A failed merge means a body handed in a geometry with mismatched attributes. The
+        // sources are already disposed by here, so continuing would silently drop a whole
+        // material; that is a build bug, not a recoverable condition.
+        if (!geometry) throw new Error(`Builder.finish: mergeGeometries failed for material "${this.matName(mat)}" in "${name}"`);
+        const key = this.matName(mat);
+        const mesh = new THREE.Mesh(geometry, mat);
+        mesh.castShadow = castsShadow(key);
+        mesh.receiveShadow = true;
+        mesh.name = `${name}:${key}`;
+        target.add(mesh);
+        merged.push(geometry);
+      }
+    };
+    mergeInto(this.buckets, group);
+    mergeInto(this.detailBuckets, detailGroup);
+
     for (const obj of this.dynamic) group.add(obj);
     const owned = this.owned;
     return {
       group,
+      detailGroup,
       dispose() {
         for (const g of merged) g.dispose();
         for (const g of owned) g.dispose();

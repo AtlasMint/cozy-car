@@ -51,6 +51,8 @@ export interface Vehicle {
   update(inputs: VehicleInputs): number;
   /** Crank: body dip, exhaust cough, needle sweep. Lights ramp on their own from `engine`. */
   ignite(): void;
+  /** Low quality hides the body's detail group: free at runtime and reversible. */
+  setQuality(q: 'low' | 'high'): void;
   dispose(): void;
 }
 
@@ -68,7 +70,7 @@ export function createVehicle(stage: Stage, v: VehicleSpec = HATCHBACK): Vehicle
   stage.wheels.add(wheels.group);
   const driver = createDriverFigure(body.wheelNode, driverRoot, v);
   const idle = createDriverIdle(driver);
-  const exhaust = createExhaust(body.exhaustTip);
+  const exhaust = createExhaust(body.exhaustTip, v.motion);
   stage.carRoot.add(exhaust.group);
   const rig = createEngineRig(v.motion);
 
@@ -133,6 +135,9 @@ export function createVehicle(stage: Stage, v: VehicleSpec = HATCHBACK): Vehicle
     ignite() {
       rig.ignite();
       exhaust.cough();
+    },
+    setQuality(q) {
+      built.detailGroup.visible = q !== 'low';
     },
     group: built.group,
     body,
