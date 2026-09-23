@@ -29,6 +29,12 @@ into `dist/`; serve `dist/` from any static host.
 Useful hashes: `#weather=thunder&night=1&temp=4` forces a weather state (kinds: clear,
 cloudy, overcast, fog, drizzle, rain, heavyRain, snow, thunder); `#debug` shows a stats panel.
 
+## Weather and location
+
+Conditions come from Open-Meteo for the browser's location, falling back to Kuala Lumpur when
+location is not shared. Click the weather badge to search for any town through Open-Meteo's
+geocoding API; the pick is remembered and used until you choose "Use my location".
+
 ## Audio
 
 Sound is layered Web Audio: engine, road hum, rain, wind and an outdoor room tone, plus
@@ -123,4 +129,4 @@ Nothing else needs to change.
   reads as sheltered.
 
 See [docs/PLAN-car.md](docs/PLAN-car.md) for the original implementation plan and
-[docs/archive/v0.1-cutaway.md](docs/archive/v0.1-cutaway.md) for the retired cutaway build (tag `v0.1`).
+[docs/archive/](docs/archive/) for the version logs (`v0.1` cutaway, `v0.2` open roof).
