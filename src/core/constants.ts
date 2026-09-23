@@ -28,7 +28,7 @@ export const PALETTE = {
   CHROME: '#D8D6CF',
   TAIL_LIGHT: '#C8281E',
   HEAD_LIGHT: '#FFF3D6',
-  HOODIE: '#D4573F',
+  HOODIE: '#4F8F5B',
   SKIN: '#C8967A',
   HAIR: '#2B2320',
   SLAB_TOP: '#C9BFAE',
@@ -182,6 +182,12 @@ export const WEATHER = {
   CACHE_KEY: 'shotgun.weather.v1',
   CACHE_TTL_MS: 10 * 60 * 1000,
   REFRESH_MS: 15 * 60 * 1000,
+  /** A location the user picked in the badge; overrides geolocation until cleared. */
+  LOCATION_KEY: 'shotgun.location.v1',
+  GEOCODE_URL: 'https://geocoding-api.open-meteo.com/v1/search',
+  GEOCODE_COUNT: 6,
+  GEOCODE_DEBOUNCE_MS: 300,
+  GEOCODE_MIN_CHARS: 2,
 } as const;
 
 export const WEATHER_FX = {

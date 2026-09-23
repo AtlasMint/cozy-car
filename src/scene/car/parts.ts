@@ -49,7 +49,7 @@ export const mats = {
   skin: std(PALETTE.SKIN, 0.85),
   hair: std(PALETTE.HAIR, 0.9),
   hoodie: std(PALETTE.HOODIE, 0.92),
-  hoodieDark: std('#A8412E', 0.92),
+  hoodieDark: std('#396B44', 0.92),
   denim: std('#3A4A63', 0.95),
 } as const;
 
