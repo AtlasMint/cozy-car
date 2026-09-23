@@ -39,10 +39,10 @@ export const OFFSCREEN_GLSL = /* glsl */ `
 `;
 
 /**
- * Doll's-house test: true when a point is inside the box, or when the view ray from that
- * point into the scene passes through the box — i.e. the particle would be drawn over the
- * car. The cut plane is an invisible wall for everything except the camera, and so is the
- * air between the camera and the car.
+ * Shelter test: true when a point is inside the box, or when the view ray from that point
+ * into the scene passes through the box — i.e. the particle would be drawn over the car. The
+ * missing roof is an invisible roof as far as the weather is concerned, and so is the air
+ * between the camera and the car.
  */
 export const SHELTER_GLSL = /* glsl */ `
   bool shelteredByBox(vec3 p, vec3 d, vec3 bmin, vec3 bmax) {

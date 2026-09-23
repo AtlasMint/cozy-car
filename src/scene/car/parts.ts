@@ -1,11 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { CAR, PALETTE } from '../../core/constants';
-
-/** World-Z position of the cut plane. */
-export const CUT = CAR.CUT_PLANE_X;
-/** Cap faces sit this far toward the camera from the sheared face to avoid z-fighting. */
-const CAP_GAP = 0.003;
+import { PALETTE } from '../../core/constants';
 
 function std(color: THREE.ColorRepresentation, roughness: number, extra: THREE.MeshStandardMaterialParameters = {}) {
   return new THREE.MeshStandardMaterial({ color, roughness, metalness: 0, ...extra });
@@ -15,9 +10,6 @@ function std(color: THREE.ColorRepresentation, roughness: number, extra: THREE.M
 export const mats = {
   body: std(PALETTE.BODY, 0.55),
   trim: std(PALETTE.BODY_TRIM, 0.8),
-  cut: new THREE.MeshBasicMaterial({ color: PALETTE.CUT }),
-  cutFoam: new THREE.MeshBasicMaterial({ color: '#DCC9A7' }),
-  cutFrame: new THREE.MeshBasicMaterial({ color: '#7C6A55' }),
   vinyl: std(PALETTE.VINYL, 0.85),
   vinylLight: std('#3B302A', 0.85),
   fabric: std(PALETTE.FABRIC, 0.95),
@@ -157,56 +149,15 @@ export class Builder {
   }
 
   /**
-   * Axis-aligned box given by its lateral span z0..z1. If the span crosses the cut plane the
-   * box is clipped and a flat cap in the cut material closes it; if it lies entirely on the
-   * camera side of the cut, nothing is built. `rz` tilts the box about its own centre, which
-   * keeps the cap on the plane because the tilt axis is the cut plane's normal.
+   * Axis-aligned box given by its lateral span z0..z1, optionally tilted about its own centre
+   * (rz, about the lateral axis).
    */
-  cutBox(
-    w: number,
-    h: number,
-    z0: number,
-    z1: number,
-    mat: THREE.Material,
-    p: { x?: number; y?: number; rz?: number; cutAt?: number } = {},
-    detail?: 'foam',
-  ): boolean {
-    const cut = p.cutAt ?? CUT;
-    if (z1 <= cut) return false;
-    const clipped = z0 < cut;
-    const a = clipped ? cut : z0;
-    const zc = (a + z1) / 2;
-    const x = p.x ?? 0;
-    const y = p.y ?? 0;
-    const rz = p.rz ?? 0;
-    const g = new THREE.BoxGeometry(w, h, z1 - a);
-    g.translate(0, 0, zc);
-    g.rotateZ(rz);
-    g.translate(x, y, 0);
+  spanBox(w: number, h: number, z0: number, z1: number, mat: THREE.Material, p: { x?: number; y?: number; rz?: number } = {}): void {
+    const g = new THREE.BoxGeometry(w, h, z1 - z0);
+    g.translate(0, 0, (z0 + z1) / 2);
+    g.rotateZ(p.rz ?? 0);
+    g.translate(p.x ?? 0, p.y ?? 0, 0);
     this.add(g, mat);
-    if (clipped) {
-      const cap = new THREE.PlaneGeometry(w, h);
-      cap.rotateY(Math.PI);
-      cap.translate(0, 0, cut - CAP_GAP);
-      cap.rotateZ(rz);
-      cap.translate(x, y, 0);
-      this.add(cap, mats.cut);
-      if (detail === 'foam') {
-        const foam = new THREE.PlaneGeometry(w * 0.8, h * 0.72);
-        foam.rotateY(Math.PI);
-        foam.translate(0, 0, cut - CAP_GAP * 2);
-        foam.rotateZ(rz);
-        foam.translate(x, y, 0);
-        this.add(foam, mats.cutFoam);
-        const frame = new THREE.PlaneGeometry(w * 0.86, Math.min(0.025, h * 0.18));
-        frame.rotateY(Math.PI);
-        frame.translate(0, -h * 0.5 + Math.min(0.025, h * 0.18) * 1.2, cut - CAP_GAP * 3);
-        frame.rotateZ(rz);
-        frame.translate(x, y, 0);
-        this.add(frame, mats.cutFrame);
-      }
-    }
-    return true;
   }
 
   /** A live object kept as its own node (wheels, needles, anything that moves). */

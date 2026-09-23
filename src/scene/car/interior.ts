@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import { CAR } from '../../core/constants';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { Builder, CUT, mats, tilted } from './parts';
+import { Builder, mats, tilted } from './parts';
 import { lerp } from '../../util/math';
 
 /**
- * Dashboard, dials, steering wheel (right-hand drive), console, seats — the driver's intact,
- * the passenger's sectioned on the cut plane — rear bench, shelf and visors.
+ * Dashboard, dials, steering wheel (right-hand drive), console, both front seats, rear bench,
+ * shelf and visors.
  */
 export interface InteriorRig {
   /** Steering wheel pivot at the hub; the driver's hands are parented here. */
@@ -18,39 +18,40 @@ export interface InteriorRig {
 }
 
 const W = CAR.FAR_WALL_Z;
-const halfW = CAR.WIDTH / 2;
 
 function seat(b: Builder, zc: number): void {
   const hw = CAR.SEAT_WIDTH / 2;
   // Cushion with side bolsters and the frame beneath.
-  b.cutBox(0.5, 0.14, zc - hw, zc + hw, mats.fabric, { x: 0.2, y: 0.51 }, 'foam');
-  b.cutBox(0.5, 0.05, zc + hw - 0.08, zc + hw, mats.fabricDark, { x: 0.2, y: 0.605 });
-  b.cutBox(0.5, 0.05, zc - hw, zc - hw + 0.08, mats.fabricDark, { x: 0.2, y: 0.605 });
-  b.cutBox(0.4, 0.1, zc - 0.2, zc + 0.2, mats.metalDark, { x: 0.2, y: 0.39 });
-  b.cutBox(0.5, 0.03, zc + 0.18, zc + 0.22, mats.metalDark, { x: 0.2, y: 0.335 });
-  b.cutBox(0.5, 0.03, zc - 0.22, zc - 0.18, mats.metalDark, { x: 0.2, y: 0.335 });
+  b.spanBox(0.5, 0.14, zc - hw, zc + hw, mats.fabric, { x: 0.2, y: 0.51 });
+  b.spanBox(0.5, 0.05, zc + hw - 0.08, zc + hw, mats.fabricDark, { x: 0.2, y: 0.605 });
+  b.spanBox(0.5, 0.05, zc - hw, zc - hw + 0.08, mats.fabricDark, { x: 0.2, y: 0.605 });
+  b.spanBox(0.4, 0.1, zc - 0.2, zc + 0.2, mats.metalDark, { x: 0.2, y: 0.39 });
+  b.spanBox(0.5, 0.03, zc + 0.18, zc + 0.22, mats.metalDark, { x: 0.2, y: 0.335 });
+  b.spanBox(0.5, 0.03, zc - 0.22, zc - 0.18, mats.metalDark, { x: 0.2, y: 0.335 });
   // Backrest, leaning back, with bolsters, a centre seam and a low headrest on two posts.
   // Kept low so the driver's shoulders and the back of their head clear it from the camera.
   const tilt = 0.2;
   const [bx, by] = tilted(-0.03, 0.5, -0.07, 0.24, tilt);
-  b.cutBox(0.14, 0.46, zc - hw, zc + hw, mats.fabric, { x: bx, y: by, rz: tilt }, 'foam');
-  b.cutBox(0.16, 0.42, zc + hw - 0.07, zc + hw, mats.fabricDark, { x: bx, y: by, rz: tilt });
-  b.cutBox(0.16, 0.42, zc - hw, zc - hw + 0.07, mats.fabricDark, { x: bx, y: by, rz: tilt });
+  b.spanBox(0.14, 0.46, zc - hw, zc + hw, mats.fabric, { x: bx, y: by, rz: tilt });
+  b.spanBox(0.16, 0.42, zc + hw - 0.07, zc + hw, mats.fabricDark, { x: bx, y: by, rz: tilt });
+  b.spanBox(0.16, 0.42, zc - hw, zc - hw + 0.07, mats.fabricDark, { x: bx, y: by, rz: tilt });
   const [sx, sy] = tilted(-0.03, 0.5, -0.145, 0.24, tilt);
-  b.cutBox(0.006, 0.38, zc - 0.012, zc + 0.012, mats.fabricDark, { x: sx, y: sy, rz: tilt });
+  b.spanBox(0.006, 0.38, zc - 0.012, zc + 0.012, mats.fabricDark, { x: sx, y: sy, rz: tilt });
   const [hx, hy] = tilted(-0.03, 0.5, -0.06, 0.55, tilt);
-  b.cutBox(0.1, 0.11, zc - 0.12, zc + 0.12, mats.fabric, { x: hx, y: hy, rz: tilt }, 'foam');
+  b.spanBox(0.1, 0.11, zc - 0.12, zc + 0.12, mats.fabric, { x: hx, y: hy, rz: tilt });
   const [px, py] = tilted(-0.03, 0.5, -0.06, 0.485, tilt);
-  b.cutBox(0.014, 0.05, zc + 0.05, zc + 0.064, mats.metal, { x: px, y: py, rz: tilt });
-  b.cutBox(0.014, 0.05, zc - 0.064, zc - 0.05, mats.metal, { x: px, y: py, rz: tilt });
+  b.spanBox(0.014, 0.05, zc + 0.05, zc + 0.064, mats.metal, { x: px, y: py, rz: tilt });
+  b.spanBox(0.014, 0.05, zc - 0.064, zc - 0.05, mats.metal, { x: px, y: py, rz: tilt });
 }
 
 export function createInterior(b: Builder): InteriorRig {
 
-  // Dashboard: raised rear lip, deeper front section, knee panel beneath.
-  b.cutBox(0.1, 0.23, -halfW, W, mats.vinyl, { x: 0.67, y: 0.875 });
-  b.cutBox(0.18, 0.2, -halfW, W, mats.vinyl, { x: 0.81, y: 0.86 });
-  b.cutBox(0.16, 0.3, -halfW, W, mats.vinylLight, { x: 0.82, y: 0.61 });
+  // Dashboard: raised rear lip, deeper front section, knee panel beneath, glovebox lid.
+  b.spanBox(0.1, 0.23, -W, W, mats.vinyl, { x: 0.67, y: 0.875 });
+  b.spanBox(0.18, 0.2, -W, W, mats.vinyl, { x: 0.81, y: 0.86 });
+  b.spanBox(0.16, 0.3, -W, W, mats.vinylLight, { x: 0.82, y: 0.61 });
+  b.box(0.012, 0.16, 0.36, mats.vinyl, { x: 0.735, y: 0.64, z: CAR.PASSENGER_Z - 0.04 });
+  b.box(0.006, 0.015, 0.05, mats.chrome, { x: 0.728, y: 0.7, z: CAR.PASSENGER_Z - 0.04 });
   // Binnacle hood over the wheel, two dials with emissive rings.
   b.box(0.16, 0.12, 0.34, mats.vinyl, { x: 0.58, y: 0.99, z: CAR.DRIVER_Z });
   const dialZ = [CAR.DRIVER_Z - 0.08, CAR.DRIVER_Z + 0.08] as const;
@@ -70,22 +71,21 @@ export function createInterior(b: Builder): InteriorRig {
   b.sphere(0.03, mats.vinyl, { x: 0.3, y: 0.66 });
   b.cyl(0.012, 0.012, 0.22, mats.vinyl, { x: 0.0, y: 0.54, rz: 0.6 });
 
-  // Seats: driver intact on the far side, passenger sectioned by the cut plane.
+  // Seats.
   seat(b, CAR.DRIVER_Z);
   seat(b, CAR.PASSENGER_Z);
 
   // Rear bench, headrests, parcel shelf.
-  b.cutBox(0.5, 0.14, -0.72, W, mats.fabric, { x: -0.97, y: 0.51 }, 'foam');
+  b.spanBox(0.5, 0.14, -0.72, 0.72, mats.fabric, { x: -0.97, y: 0.51 });
   const benchTilt = 0.15;
   const [rbx, rby] = tilted(-1.2, 0.5, -0.06, 0.25, benchTilt);
-  b.cutBox(0.12, 0.46, -0.72, W, mats.fabric, { x: rbx, y: rby, rz: benchTilt }, 'foam');
+  b.spanBox(0.12, 0.46, -0.72, 0.72, mats.fabric, { x: rbx, y: rby, rz: benchTilt });
   const [rhx, rhy] = tilted(-1.2, 0.5, -0.06, 0.55, benchTilt);
-  for (const z of [-0.4, 0.4]) b.cutBox(0.1, 0.12, z - 0.13, z + 0.13, mats.fabric, { x: rhx, y: rhy, rz: benchTilt });
-  b.cutBox(0.5, 0.02, -0.72, W, mats.vinyl, { x: -1.55, y: 0.985 });
+  for (const z of [-0.4, 0.4]) b.spanBox(0.1, 0.12, z - 0.13, z + 0.13, mats.fabric, { x: rhx, y: rhy, rz: benchTilt });
+  b.spanBox(0.5, 0.02, -W, W, mats.vinyl, { x: -1.55, y: 0.985 });
 
-  // Sun visors: the far one whole, the near one sectioned like everything else on the plane.
-  b.box(0.2, 0.012, 0.3, mats.vinyl, { x: 0.05, y: 1.32, z: 0.45 });
-  b.cutBox(0.2, 0.012, -0.6, -0.3, mats.vinyl, { x: 0.05, y: 1.32 });
+  // Sun visors under the windshield header.
+  for (const z of [-0.45, 0.45]) b.box(0.2, 0.012, 0.3, mats.vinyl, { x: 0.05, y: 1.32, z });
 
   // Steering wheel (live node) and column.
   const wheelNode = new THREE.Group();
@@ -142,4 +142,3 @@ export function createInterior(b: Builder): InteriorRig {
   };
 }
 
-export { CUT };

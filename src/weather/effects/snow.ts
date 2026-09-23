@@ -1,16 +1,15 @@
 import * as THREE from 'three';
-import { CAR, WEATHER_FX, WORLD } from '../../core/constants';
+import { WEATHER_FX, WORLD } from '../../core/constants';
 import { mulberry32 } from '../../util/math';
 import type { WeatherEffect } from '../director';
 import { CAMERA_AXES_GLSL, OFFSCREEN_GLSL, SHELTER_GLSL, instancedQuads } from './instanced';
 
 /**
  * Snow: slower, larger, soft round sprites with lateral drift and near-zero shear. The same
- * car-box exclusion as rain. At high intensity, white caps tint the slab's shoulders and the
- * car's roof half.
+ * car-box exclusion as rain. At high intensity, white caps tint the slab's shoulders.
  */
 export interface SnowEffect extends WeatherEffect {
-  mountCaps(bodyRig: THREE.Object3D, slab: THREE.Object3D): void;
+  mountCaps(slab: THREE.Object3D): void;
 }
 
 export function createSnow(quality: 'low' | 'high'): SnowEffect {
@@ -104,7 +103,6 @@ export function createSnow(quality: 'low' | 'high'): SnowEffect {
     caps.push(m);
     return m;
   };
-  const roofCap = cap(1.3, CAR.FAR_WALL_Z + CAR.FAR_WALL_THICKNESS - CAR.ROOF_CUT_X, -0.55, CAR.ROOF_Y + 0.004, (CAR.ROOF_CUT_X + CAR.FAR_WALL_Z + CAR.FAR_WALL_THICKNESS) / 2);
   const shoulder = (WORLD.SLAB_WIDTH / 2 - WORLD.ROAD_WIDTH / 2) * 0.96;
   const length = WORLD.SLAB_FRONT - WORLD.SLAB_BACK;
   const mid = (WORLD.SLAB_FRONT + WORLD.SLAB_BACK) / 2;
@@ -115,8 +113,7 @@ export function createSnow(quality: 'low' | 'high'): SnowEffect {
     mount(parent) {
       parent.add(mesh);
     },
-    mountCaps(bodyRig, slab) {
-      bodyRig.add(roofCap);
+    mountCaps(slab) {
       slab.add(nearCap, farCap);
     },
     setIntensity(n) {

@@ -4,7 +4,7 @@
  *
  * World axes: the car faces +X (its travel direction), Y is up, the car's right-hand side is
  * +Z. The camera sits on the rear-left quarter, i.e. at −X, +Y, −Z from the car, so the near
- * (cut-away) side of the car is the −Z side.
+ * side of the car is the −Z side.
  */
 import { DEG } from '../util/math';
 
@@ -17,7 +17,6 @@ export const RENDER = {
 export const PALETTE = {
   BODY: '#7A9E9F',
   BODY_TRIM: '#2B2E30',
-  CUT: '#F2E3C9',
   VINYL: '#2A211C',
   FABRIC: '#6B5B4E',
   FABRIC_LIGHT: '#8A786A',
@@ -90,28 +89,16 @@ export const WORLD = {
 } as const;
 
 export const CAR = {
-  /**
-   * Lateral position of the cut plane on the car's lateral axis (world Z). Everything above
-   * the sills that lies nearer the camera than this plane is simply not built; parts that
-   * cross it are capped in the cut material. Named per PLAN.md so the glTF seam can keep it.
-   */
-  CUT_PLANE_X: -0.36,
-  /**
-   * The roof is sheared on its own, further toward the far side. From the rear-left at
-   * isometric elevation, a roof cut on the main plane would sit directly between the camera
-   * and the driver's head and shoulders; staggering this one cut (a common cutaway-drawing
-   * device) keeps the driver, wheel and far door card in view.
-   */
-  ROOF_CUT_X: 0.42,
   LENGTH: 3.8,
   WIDTH: 1.68,
-  /** Inner face of the far-side body wall (doors, glass, pillars). */
+  /** Inner face of each side wall (doors, glass, pillars); the near wall mirrors at −FAR_WALL_Z. */
   FAR_WALL_Z: 0.79,
   FAR_WALL_THICKNESS: 0.05,
   FLOOR_Y: 0.28,
   FLOOR_TOP_Y: 0.32,
   SILL_Y: 0.46,
   BELT_Y: 1.0,
+  /** Top of the window frames and header rails. There is no roof panel: the cabin is open. */
   ROOF_Y: 1.42,
   WHEELBASE: 2.4,
   TRACK: 1.38,
@@ -229,7 +216,7 @@ export const WEATHER_FX = {
   LIGHTNING: { minGap: 8, maxGap: 25, thunderMin: 1, thunderMax: 6 },
   HEADLIGHT: { length: 4.5, radius: 0.7, alpha: 0.09, color: '#FFE9C2', poolAlpha: 0.28 },
   STREETLIGHT: { intensity: 18, distance: 9, color: '#FFAA5E' },
-  /** Doll's-house rain exclusion: the whole car, roof included, even the unbuilt near half. */
+  /** Rain/snow exclusion: the whole car including the roof volume, so the open cabin stays dry. */
   CAR_BOX: { min: [-1.98, 0, -0.86] as const, max: [1.98, 1.46, 0.86] as const },
   COLD_BOOST: { coldC: 8, coolC: 16, cold: 2.0, cool: 1.4 },
   /** Day looks per kind: sky top (also fog colour), sky bottom, key colour/intensity, hemisphere. */

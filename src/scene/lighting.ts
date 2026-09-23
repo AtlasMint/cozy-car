@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAR, WEATHER_FX } from '../core/constants';
+import { WEATHER_FX } from '../core/constants';
 
 /**
  * Lighting rig driven by the weather director. Exactly one light casts shadows (the key),
@@ -77,10 +77,7 @@ export function createLighting(): LightingRig {
   const dash = new THREE.PointLight('#C9884A', 0, 1.6, 1.8);
   dash.position.set(0.5, 0.92, 0.1);
   dash.name = 'dashLight';
-  const bay = new THREE.PointLight('#FFE2B8', 0.9, 1.6, 1.8);
-  bay.position.set(1.3, 0.95, -0.45);
-  bay.name = 'bayLight';
-  group.add(cabin, dash, bay);
+  group.add(cabin, dash);
 
   // Headlight cones: additive, unlit, faded along their length. Both headlights throw a
   // cone even though the near one is not drawn — the car is whole.
@@ -151,9 +148,7 @@ export function createLighting(): LightingRig {
   const applyCabin = () => {
     cabin.intensity = 0.7 + 2.3 * ignition + 1.6 * ignition * night;
     dash.intensity = (1.3 + 0.8 * night) * ignition;
-    bay.intensity = 0.9 * (1 - night * 0.7);
   };
-  void CAR;
 
   return {
     group,

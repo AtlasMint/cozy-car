@@ -1,9 +1,9 @@
 # Shotgun
 
-A cutaway hatchback on a shelf, idling in your weather.
+A small open-top hatchback on a shelf, idling in your weather.
 
-The view is a fixed isometric shot of a small seafoam car sliced open on its near side, seen
-from the rear-left quarter — you are sitting behind the driver. The engine runs, the body
+The view is a fixed isometric shot of a small seafoam car with no roof, seen from the rear-left
+quarter — you look down into the cabin and sit behind the driver. The engine runs, the body
 trembles on its springs, the air freshener swings, and the weather outside is fetched from
 Open-Meteo for wherever you are. Two modes: **Chill** (parked, idling) and **Focus** (the
 world scrolls past a stationary car). One thing to click: the radio, which pushes the camera
@@ -52,7 +52,7 @@ Every tunable is in [src/core/constants.ts](src/core/constants.ts), grouped by s
 |---|---|
 | `CAMERA` | View size, isometric angles, camera distance, parallax amounts |
 | `WORLD` | Slab and road dimensions, scenery counts and treadmill field |
-| `CAR` | Dimensions, the cut plane (`CUT_PLANE_X`) and the staggered roof cut (`ROOF_CUT_X`), seat and wheel positions |
+| `CAR` | Dimensions, wall and frame heights, seat and wheel positions |
 | `DRIVER` | Breathing, head lag, gesture cadence, posture |
 | `MOTION` | The four vibration bands, bumps, ignition dip, tacho, freshener, exhaust |
 | `SPEED` | Focus cruising speed and its spring |
@@ -107,20 +107,20 @@ The car and driver are code-built so the repo stays text-only. To replace either
   system and interaction code only ever address these.
 - Keep the hitbox proxies (`hitbox:radio`) and the steering wheel node (`steeringWheel`), which
   the driver's hands are parented to.
-- Keep `CAR.CUT_PLANE_X` and `CAR.ROOF_CUT_X` as the planes your model is sliced on; the rain
-  exclusion box (`WEATHER_FX.CAR_BOX`) should still enclose the whole car.
+- Keep the cabin open (no roof panel) so the camera can see in, and keep the rain exclusion
+  box (`WEATHER_FX.CAR_BOX`) enclosing the whole car including the roof volume.
 
 Nothing else needs to change.
 
 ## Design notes
 
-- The camera sits on the rear-left quarter at true isometric angles. From there a roof cut on
-  the main plane would sit between the lens and the driver's head, so the roof is sheared on
-  its own staggered plane — a common cutaway-drawing device.
+- The camera sits on the rear-left quarter at true isometric angles and looks down into the
+  open cabin over the near door. Window frames and header rails stay so the silhouette reads.
 - The car never moves. In Focus the world moves past it on a treadmill: one damped speed value
   feeds road scroll, scenery, wheel spin, motion amplitudes and the audio mix.
-- The cut is a viewing conceit, not damage. Rain is dropped by a ray/box test against the whole
-  car — including the unbuilt near half — so nothing rains into the cabin and the car reads as
-  sheltered. Both headlights throw a cone even though only the far one is drawn.
+- The missing roof is a viewing conceit. Rain and snow are dropped by a ray/box test against
+  the whole car including the roof volume, so nothing falls into the open cabin and the car
+  reads as sheltered.
 
-See [docs/PLAN-car.md](docs/PLAN-car.md) for the original implementation plan.
+See [docs/PLAN-car.md](docs/PLAN-car.md) for the original implementation plan and
+[docs/archive/v0.1-cutaway.md](docs/archive/v0.1-cutaway.md) for the retired cutaway build (tag `v0.1`).

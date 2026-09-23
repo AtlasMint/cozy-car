@@ -95,7 +95,7 @@ export function createWeatherDirector(deps: DirectorDeps): WeatherDirector {
   snow.mount(stage.weatherRoot);
   splash.mount(stage.weatherRoot);
   glass.mount(stage.bodyRig);
-  snow.mountCaps(stage.bodyRig, stage.slab);
+  snow.mountCaps(stage.slab);
 
   // Smoothed state.
   const cur: Record<'night' | 'rain' | 'snow' | 'condense' | 'fog' | 'lightning' | 'coldBoost' | 'wet', number> = {

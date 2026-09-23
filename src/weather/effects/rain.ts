@@ -6,8 +6,8 @@ import { CAMERA_AXES_GLSL, OFFSCREEN_GLSL, SHELTER_GLSL, instancedQuads } from '
 
 /**
  * Rain: thousands of instanced thin quads whose fall, wrap and shear are computed in the
- * vertex shader. Streaks shear along −X as road speed rises. The doll's-house exclusion is
- * built in: any drop inside the car's bounding box is dropped before it can be drawn.
+ * vertex shader. Streaks shear along −X as road speed rises. The shelter exclusion is built
+ * in: any drop inside the car's bounding box, or in front of it along the view, is never drawn.
  */
 export function createRain(quality: 'low' | 'high'): WeatherEffect {
   const R = WEATHER_FX.RAIN;

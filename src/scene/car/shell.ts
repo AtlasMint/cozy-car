@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import { CAR } from '../../core/constants';
-import { Builder, CUT, mats, paneGeometry } from './parts';
+import { Builder, mats, paneGeometry } from './parts';
 
 /**
- * Far-side body wall, roof half, glass, bonnet, tailgate and the rear-end detail that faces
- * the camera. The near side is never built; sheared parts are capped in the cut material.
+ * Body shell: both side walls (doors, pillars, window frames), bonnet, front and rear panels,
+ * tailgate, all glass, lights and mirrors. There is no roof panel — the cabin is open to the
+ * sky so the camera looks straight down into it — but the window frames and header rails stay,
+ * so the hatchback silhouette still reads.
  */
 export interface GlassPane {
   name: string;
@@ -20,6 +22,9 @@ export interface ShellRig {
 const S = CAR.SILL_Y;
 const W = CAR.FAR_WALL_Z;
 const T = CAR.FAR_WALL_THICKNESS;
+
+const FRONT_WINDOW: [number, number][] = [[0.5, 1.02], [0.17, 1.33], [-0.28, 1.33], [-0.28, 1.02]];
+const REAR_WINDOW: [number, number][] = [[-0.38, 1.02], [-0.38, 1.33], [-1.1, 1.33], [-1.27, 1.02]];
 
 function sideProfile(): THREE.Shape {
   const s = new THREE.Shape();
@@ -45,20 +50,12 @@ function sideProfile(): THREE.Shape {
     s.absarc(cx, cy, r, a0, Math.PI - a0, false);
   }
   s.lineTo(-1.86, S);
-
-  const frontWindow = new THREE.Path();
-  frontWindow.moveTo(0.5, 1.02);
-  frontWindow.lineTo(0.17, 1.33);
-  frontWindow.lineTo(-0.28, 1.33);
-  frontWindow.lineTo(-0.28, 1.02);
-  frontWindow.closePath();
-  const rearWindow = new THREE.Path();
-  rearWindow.moveTo(-0.38, 1.02);
-  rearWindow.lineTo(-0.38, 1.33);
-  rearWindow.lineTo(-1.1, 1.33);
-  rearWindow.lineTo(-1.27, 1.02);
-  rearWindow.closePath();
-  s.holes.push(frontWindow, rearWindow);
+  for (const win of [FRONT_WINDOW, REAR_WINDOW]) {
+    const hole = new THREE.Path();
+    win.forEach(([x, y], i) => (i === 0 ? hole.moveTo(x, y) : hole.lineTo(x, y)));
+    hole.closePath();
+    s.holes.push(hole);
+  }
   return s;
 }
 
@@ -70,7 +67,6 @@ function pathShape(points: [number, number][]): THREE.Shape {
 }
 
 export function createShell(b: Builder): ShellRig {
-  const halfW = CAR.WIDTH / 2;
   const panes: GlassPane[] = [];
 
   const addPane = (name: string, geometry: THREE.BufferGeometry) => {
@@ -83,54 +79,53 @@ export function createShell(b: Builder): ShellRig {
     b.dyn(mesh, geometry);
   };
 
-  // Far wall: the whole side silhouette with window holes and wheel arches, 5 cm thick.
-  const wall = new THREE.ExtrudeGeometry(sideProfile(), { depth: T, bevelEnabled: false, curveSegments: 6 });
-  wall.translate(0, 0, W);
-  b.add(wall, mats.body);
+  for (const sign of [1, -1]) {
+    const side = sign > 0 ? 'Far' : 'Near';
+    // Side wall: the whole silhouette with window holes and wheel arches, 5 cm thick.
+    const wall = new THREE.ExtrudeGeometry(sideProfile(), { depth: T, bevelEnabled: false, curveSegments: 6 });
+    wall.translate(0, 0, sign > 0 ? W : -W - T);
+    b.add(wall, mats.body);
+    // Side glass sits mid-wall.
+    const zGlass = sign * (W + T / 2);
+    const front = new THREE.ShapeGeometry(pathShape(FRONT_WINDOW));
+    front.translate(0, 0, zGlass);
+    addPane(`sideFront${side}`, front);
+    const rear = new THREE.ShapeGeometry(pathShape(REAR_WINDOW));
+    rear.translate(0, 0, zGlass);
+    addPane(`sideRear${side}`, rear);
+    // Door mirror.
+    b.box(0.09, 0.06, 0.13, mats.body, { x: 0.5, y: 1.04, z: sign * (W + T + 0.065) });
+    b.box(0.005, 0.045, 0.1, mats.chrome, { x: 0.453, y: 1.04, z: sign * (W + T + 0.065) });
+    // Door card on the inner face: fabric insert, armrest, inner handle.
+    b.box(1.83, 0.5, 0.05, mats.vinyl, { x: -0.365, y: 0.71, z: sign * (W - 0.025) });
+    b.box(1.6, 0.28, 0.012, mats.fabric, { x: -0.35, y: 0.7, z: sign * (W - 0.056) });
+    b.box(0.55, 0.05, 0.1, mats.vinylLight, { x: 0.07, y: 0.72, z: sign * (W - 0.1) });
+    b.box(0.1, 0.02, 0.03, mats.chrome, { x: 0.3, y: 0.83, z: sign * (W - 0.065) });
+    // Tail-light cluster and indicator on each rear corner; headlight on each front corner.
+    b.box(0.045, 0.28, 0.26, mats.tailLight, { x: -1.8825, y: 0.76, z: sign * (W + T - 0.13) });
+    b.box(0.045, 0.07, 0.26, mats.indicator, { x: -1.8825, y: 0.58, z: sign * (W + T - 0.13) });
+    b.cylX(0.075, 0.02, mats.headLight, { x: 1.915, y: 0.72, z: sign * 0.56 });
+  }
 
-  // Far side glass sits mid-wall.
-  const frontGlass = new THREE.ShapeGeometry(pathShape([[0.5, 1.02], [0.17, 1.33], [-0.28, 1.33], [-0.28, 1.02]]));
-  frontGlass.translate(0, 0, W + T / 2);
-  addPane('sideFront', frontGlass);
-  const rearGlass = new THREE.ShapeGeometry(pathShape([[-0.38, 1.02], [-0.38, 1.33], [-1.1, 1.33], [-1.27, 1.02]]));
-  rearGlass.translate(0, 0, W + T / 2);
-  addPane('sideRear', rearGlass);
+  // Header rails where a roof would meet the glass: the windshield header and the hatch hinge.
+  b.box(0.16, 0.055, CAR.WIDTH, mats.body, { x: 0.1, y: 1.3875 });
+  b.box(0.1, 0.05, CAR.WIDTH, mats.body, { x: -1.25, y: 1.39 });
 
-  // Roof with headliner and a small rear lip — sheared on its own staggered plane so the
-  // driver stays in view (see CAR.ROOF_CUT_X).
-  const roofCut = CAR.ROOF_CUT_X;
-  b.cutBox(1.34, 0.05, -halfW, W + T, mats.body, { x: -0.55, y: 1.395, cutAt: roofCut });
-  b.cutBox(1.28, 0.016, -halfW, W, mats.fabricLight, { x: -0.55, y: 1.362, cutAt: roofCut });
-  b.cutBox(0.08, 0.035, -halfW, W + T, mats.body, { x: -1.26, y: 1.41, cutAt: roofCut });
-
-  // Bonnet — slightly raised over the engine — and the front panel, grille, far headlight.
-  b.cutBox(1.197, 0.03, -halfW, W + T, mats.body, { x: 1.255, y: 0.925, rz: -0.1088 });
-  b.cutBox(0.06, 0.34, -halfW, W + T, mats.body, { x: 1.88, y: 0.69 });
+  // Bonnet — slightly raised over the engine — front panel and grille.
+  b.spanBox(1.197, 0.03, -W - T, W + T, mats.body, { x: 1.255, y: 0.925, rz: -0.1088 });
+  b.spanBox(0.06, 0.34, -W - T, W + T, mats.body, { x: 1.88, y: 0.69 });
   b.box(0.012, 0.16, 0.5, mats.trim, { x: 1.915, y: 0.68 });
-  b.cylX(0.075, 0.02, mats.headLight, { x: 1.915, y: 0.72, z: 0.56 });
 
-  // Windshield and rear glass, cut at the plane.
-  addPane('windshield', paneGeometry(0.62, 1.0, 0.17, 1.355, CUT, W - 0.005));
-  addPane('rear', paneGeometry(-1.29, 1.375, -1.8, 0.98, CUT, W - 0.005));
+  // Windshield and hatch glass, wall to wall.
+  addPane('windshield', paneGeometry(0.62, 1.0, 0.17, 1.355, -W + 0.005, W - 0.005));
+  addPane('rear', paneGeometry(-1.29, 1.375, -1.8, 0.98, -W + 0.005, W - 0.005));
 
-  // Tailgate below the glass, tilted with the hatch line.
-  b.cutBox(0.04, 0.485, -halfW, W + T, mats.body, { x: -1.83, y: 0.74, rz: -0.124 });
-  // Rear end facing camera: far tail-light cluster, indicator, number plate, badge.
-  b.box(0.045, 0.28, 0.26, mats.tailLight, { x: -1.8825, y: 0.76, z: W + T - 0.13 });
-  b.box(0.045, 0.07, 0.26, mats.indicator, { x: -1.8825, y: 0.58, z: W + T - 0.13 });
+  // Tailgate below the glass, tilted with the hatch line; number plate, badge, rear wiper.
+  b.spanBox(0.04, 0.485, -W - T, W + T, mats.body, { x: -1.83, y: 0.74, rz: -0.124 });
   b.box(0.01, 0.14, 0.46, mats.trim, { x: -1.87, y: 0.63 });
   b.box(0.015, 0.12, 0.44, mats.plate, { x: -1.875, y: 0.63 });
   b.cylX(0.03, 0.012, mats.chrome, { x: -1.875, y: 0.88, z: 0.25 });
-  // Rear wiper resting on the glass.
   b.box(0.01, 0.012, 0.3, mats.trim, { x: -1.76, y: 1.02, z: 0.45 });
-
-  // Far door mirror and the interior door card on the wall's inner face.
-  b.box(0.09, 0.06, 0.13, mats.body, { x: 0.5, y: 1.04, z: W + T + 0.065 });
-  b.box(0.005, 0.045, 0.1, mats.chrome, { x: 0.453, y: 1.04, z: W + T + 0.065 });
-  b.box(1.83, 0.5, 0.05, mats.vinyl, { x: -0.365, y: 0.71, z: W - 0.025 });
-  b.box(1.6, 0.28, 0.012, mats.fabric, { x: -0.35, y: 0.7, z: W - 0.056 });
-  b.box(0.55, 0.05, 0.1, mats.vinylLight, { x: 0.07, y: 0.72, z: W - 0.1 });
-  b.box(0.1, 0.02, 0.03, mats.chrome, { x: 0.3, y: 0.83, z: W - 0.065 });
 
   return {
     panes,

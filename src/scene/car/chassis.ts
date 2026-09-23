@@ -3,8 +3,8 @@ import { CAR } from '../../core/constants';
 import { Builder, mats } from './parts';
 
 /**
- * Floorpan, sills, bulkhead, bumpers, engine, exhaust and the exposed near-side running
- * gear. Everything at or below sill height is whole — the cut only applies above it.
+ * Floorpan, sills, bulkhead, bumpers, engine, exhaust and the near-side running gear seen
+ * through the wheel wells.
  */
 export interface ChassisRig {
   exhaustTip: THREE.Vector3;
@@ -15,7 +15,6 @@ export function createChassis(b: Builder): ChassisRig {
   const FT = CAR.FLOOR_TOP_Y;
   const S = CAR.SILL_Y;
   const W = CAR.FAR_WALL_Z;
-  const halfW = CAR.WIDTH / 2;
   const floorY = (F + FT) / 2;
   const floorH = FT - F;
 
@@ -32,20 +31,18 @@ export function createChassis(b: Builder): ChassisRig {
     b.box(0.53, tubH, 0.04, mats.metalDark, { x: sgn * 1.225, y: tubY, z: 0.52 });
     b.box(0.53, tubH, 0.04, mats.metalDark, { x: sgn * 1.225, y: tubY, z: -0.52 });
   }
-  // Far sill (lower body under the far doors) and the low near lip at floor level.
-  b.box(1.75, tubH, 0.18, mats.body, { x: 0.025, y: tubY, z: W + CAR.FAR_WALL_THICKNESS - 0.09 });
-  b.box(1.75, 0.08, 0.08, mats.body, { x: 0.025, y: F + 0.04, z: -halfW + 0.04 });
+  // Sills under the doors on both sides.
+  for (const sign of [1, -1]) b.box(1.75, tubH, 0.18, mats.body, { x: 0.025, y: tubY, z: sign * (W + CAR.FAR_WALL_THICKNESS - 0.09) });
   // Transmission tunnel and the rear floor riser under the bench.
   b.box(2.1, 0.13, 0.26, mats.carpet, { x: -0.15, y: FT + 0.065 });
   b.box(0.6, 0.12, 1.1, mats.carpet, { x: -1.0, y: FT + 0.06 });
-  // Bulkhead between the engine bay and the cabin — crosses the cut, gets a cap.
-  b.cutBox(0.06, 0.61, -halfW, W, mats.metalDark, { x: 0.92, y: FT + 0.305 });
+  // Bulkhead between the engine bay and the cabin.
+  b.box(0.06, 0.61, CAR.WIDTH - 0.06, mats.metalDark, { x: 0.92, y: FT + 0.305 });
   // Bumpers — whole.
   b.box(0.08, 0.16, CAR.WIDTH, mats.trim, { x: 1.92, y: 0.44 });
   b.box(0.08, 0.16, CAR.WIDTH, mats.trim, { x: -1.92, y: 0.44 });
 
-  // Engine — the thing that is running. Its near face sits on the cut plane so it is seen
-  // through the opening under the cut bonnet.
+  // Engine — the thing that is running — under the bonnet.
   const ez = -0.07;
   b.box(0.5, 0.28, 0.58, mats.engine, { x: 1.3, y: 0.64, z: ez });
   b.box(0.4, 0.08, 0.46, mats.engineCover, { x: 1.3, y: 0.82, z: ez });
