@@ -7,7 +7,7 @@ browser, and each phase states what the user has if work stops there.
 
 This supersedes [PLAN-car-init.md](PLAN-car-init.md) §0's single-vehicle framing and its
 "no car customisation" non-goal. Everything else in that document still binds, especially §4
-(art direction) and §16 (working agreements), both amended in §17 below.
+(art direction) and §16 (working agreements), both amended in §18 below.
 
 ---
 
@@ -63,11 +63,11 @@ Added for three vehicles:
 - **Per-vehicle budget: 100 draw calls and 90k triangles.** Today's hatchback measures 96
   calls and 56k triangles. `renderer.info.render.calls` **counts the shadow pass**, so every
   merged material bucket costs two calls — a ten-material body is twenty calls, not ten.
-  Budget accordingly and enforce it with a test (§13).
+  Budget accordingly and enforce it with a test (§17).
 - **Nothing in a VehicleSpec may change program-affecting state.** Light counts, material
   feature flags (`map`, `emissiveMap`, `transparent`, `vertexColors`, `flatShading`) and
   shader defines must be identical across all three vehicles, or every swap recompiles every
-  lit material in the scene. This is a hard rule, not a preference — see §17.
+  lit material in the scene. This is a hard rule, not a preference — see §18.
 - **One vehicle is built at a time**, but a built vehicle is **kept**, hidden, for the rest of
   the session. Building is a swap-time cost paid once per vehicle.
 - The hatchback's numbers move into a spec **verbatim**. Any visual difference after the
@@ -341,7 +341,7 @@ by screenshot that every vehicle keeps roughly the hatchback's **+0.25 m top mar
 | swing pivot / length | mirror, 0.17 | mobile, 0.26 | keyring, 0.09 |
 
 `rearDelay = wheelbase / speed.focus` — a derived quantity frozen as a constant, so it is
-wrong by default on any new wheelbase. Unit-test the identity (§13). The hatchback's 0.12
+wrong by default on any new wheelbase. Unit-test the identity (§17). The hatchback's 0.12
 becomes 0.109, which is the correct value it was rounded from; note the change in the commit.
 
 Amplitudes are judged **on screen**, not in metres: the van lives in a 7.0 m frame instead of
@@ -349,25 +349,34 @@ Amplitudes are judged **on screen**, not in metres: the van lives in a 7.0 m fra
 Pitch is a rotation and is not diminished by the wider frame, but the van is 1.5× longer, so
 the same angle moves its nose 1.5× further — which is why `wheelToPitch` goes *down*.
 
-### Audio
+### Audio — the engine voice
 
-The synthesized fallback in `layers.ts` is the honest baseline — `engine-idle-van.ogg` and
-`engine-idle-sports.ogg` are added to `public/audio/README.md` as optional files, and a
-missing one falls back to that vehicle's synth profile, not the hatchback's.
+The full model and the reasoning behind it are in §11. These are its per-vehicle parameters.
+All three are four-cylinder, so the main firing order is 2 and the firing frequency is
+`rpm × 4 / 120`.
 
-| | Hatchback | Van | Sports |
+| | Hatchback | Van (diesel) | Sports |
 |---|---|---|---|
-| cylinders → firing Hz at idle | 4 → 25.0 | 4 → 20.7 | 4 → 32.7 |
-| detune | 1.007 | 1.016 | 1.012 |
-| lowpass base / per-rate | 180 / 480 | 120 / 300 | 300 / 820 |
-| sub / mix gain | 0.50 / 0.35 | 0.80 / 0.42 | 0.32 / 0.40 |
-| `focusRate` | 1.35 | 1.18 | 1.55 |
-| gain engine / road / wind | 1.00 / 1.00 / 1.00 | 1.22 / 1.14 / 1.10 | 1.16 / 1.10 / **1.45** |
+| cylinders → main order | 4 → 2nd | 4 → 2nd | 4 → 2nd |
+| firing Hz, idle → cruise | 25.0 → 73.3 | 20.7 → 61.7 | 32.7 → 113.3 |
+| order rolloff λ (higher = darker) | 0.38 | 0.52 | 0.26 |
+| per-cylinder gain spread | ±6% | ±12% | ±4% |
+| firing asymmetry | ±4° crank | ±7° crank | ±3° crank |
+| irregularity σ, idle → loaded | 0.12 → 0.04 | 0.20 → 0.06 | 0.08 → 0.03 |
+| exhaust modes (Hz) | 33 / 100 / 167 | 20 / 61 / 102 | 55 / 164 / 273 |
+| …from system length @ gas speed | 3.0 m @ 400 m/s | 5.5 m @ 450 m/s | 2.2 m @ 480 m/s |
+| drone peak | 82 Hz, Q 6 | 64 Hz, Q 5 | 110 Hz, Q 7 |
+| resonator damping lowpass | 2.5 kHz | 1.5 kHz | 3.5 kHz |
+| block / knock band | 0.05 | **0.18** @ 2.9–3.8 kHz | 0.08 |
+| valve tick (3–7 kHz) | 0.10 | 0.06 | 0.14 |
+| intake gain, idle → loaded | 0.08 → 0.30 | 0.06 → 0.26 | 0.10 → **0.45** |
+| layer gain engine / road / wind | 1.00 / 1.00 / 1.00 | 1.22 / 1.14 / 1.10 | 1.16 / 1.10 / **1.45** |
 | crank from → to Hz / ms | 28 → 62 / 700 | 18 → 44 / 1150 | 34 → 80 / 520 |
+| `focusRate` (file path only) | 1.35 | 1.18 | 1.55 |
 
-The sports car's **wind** gain is the single change that will make Focus feel different: an
-open car at 86 km/h is mostly wind. The van's crank is the cheapest "different vehicle" tell
-in the app — it is the first thing heard after a switch.
+The sports car's **wind** gain and **intake** gain are the two numbers that make Focus feel
+different: an open car at 86 km/h is mostly wind and induction roar. The van's crank is the
+cheapest "different vehicle" tell in the app — it is the first thing heard after a switch.
 
 ### Lighting
 
@@ -411,7 +420,7 @@ the *vertex* shader, so a bigger box removes fragment work — the van is a fill
 
 Door mirrors sit outside the box on every vehicle (the hatchback's reach ±0.97 against a box
 at ±0.86), so a drop can render over a mirror. That is how it ships today and it is invisible
-at this scale; widening the box to cover mirrors is §19 work, not part of this feature.
+at this scale; widening the box to cover mirrors is §20 work, not part of this feature.
 
 ### Driver pose
 
@@ -530,7 +539,7 @@ material — a real hazard when two new bodies add hundreds of Builder calls. Do
 `BodyKit` contract that every geometry handed to the Builder carries exactly position, normal
 and uv.
 
-Wire `import.meta.hot.dispose` to the same teardown path, closing a §16 working agreement the
+Wire `import.meta.hot.dispose` to the same teardown path, closing a PLAN-car-init.md §16 working agreement the
 repo currently violates.
 
 **Acceptance:** build → dispose → build in a loop 20 times with `#debug` open; draw calls,
@@ -563,7 +572,162 @@ moves. Screenshots unchanged.
 
 ---
 
-## 11. Phase 5 — Performance pass, before any new body
+## 11. Phase 5 — The engine voice
+
+**Goal:** the engine stops sounding like a synthesiser and starts sounding like an engine, on
+all three vehicles.
+**If work stops here:** the first user-visible win in this plan. It improves the app as it
+stands today, with one vehicle, so it is worth landing even if the rest slips.
+
+### What is wrong now
+
+`audio/layers.ts` builds the engine from two detuned sawtooth oscillators and a sine sub
+through a lowpass whose cutoff follows rpm. Four faults, all structural rather than tuning:
+
+1. **A continuous oscillator cannot sound like an engine.** What a four-stroke radiates is a
+   train of discrete combustion transients, not a sustained vibration. At the hatchback's idle
+   the firing rate is 25 Hz — below the pitch boundary — so the ear has to hear *individual
+   events*, and a sawtooth has exactly one attack in its life. Detuning two of them makes it
+   worse, not better: it guarantees the partials drift out of phase, which is the chorused
+   drone we currently have. Every serious engine model does the opposite and locks all
+   harmonics to the cycle phase precisely to keep the signal impulsive.
+2. **The filter moves with rpm.** In a real engine a *moving* pulse rate plays through *fixed*
+   resonances — an exhaust pipe does not change length with engine speed. We sweep the cutoff
+   with rpm and hold the excitation smooth, which is exactly backwards, and it is the single
+   biggest reason the result reads as a synth patch rather than a machine.
+3. **It is perfectly periodic**, so every cycle produces an identical spectrum and the ear
+   fuses it into a buzz within a few hundred milliseconds. Real engines vary cycle to cycle,
+   most of all at idle — which is where this app spends nearly all of its time.
+4. **Load and rpm are the same knob.** Chill and Focus differ only in pitch. At the same rpm a
+   real engine under load burns more fuel, raises the rate of pressure rise and puts much more
+   energy above a few hundred Hz, while its intake roar climbs 10–15 dB.
+
+And the fact that reframes all of it: **no audio files ship.** `public/audio/` holds only a
+README, so the "synthesized stand-in" is what every user has heard since v0.1. It is not a
+fallback, it is the product. Invert the framing in the code and in the docs: the synth is the
+engine, and a file, if anyone ever adds one, *replaces* it.
+
+### The model: a pulse train through fixed resonators
+
+The standard architecture, and the one to build:
+
+```
+cycle phase (720°, advances at rpm/120)
+  → per-cylinder firing offsets + fixed asymmetry + per-cycle jitter
+  → combustion pulse per cylinder            ← rate tracks rpm
+  → sum = excitation
+  → exhaust resonator bank                   ← FIXED formants, never move with rpm
+  → tailpipe radiation highpass
+  + intake noise gated by the same cycle phase, scaled by load
+  + mechanical tick / knock band
+```
+
+**The trick that makes this cheap.** A four-stroke's cycle is two crank revolutions, so its
+spectrum sits at half-orders: 0.5, 1, 1.5, 2… of crank rotation. Run one `OscillatorNode` at
+the **cycle** frequency `rpm / 120` and every integer harmonic *k* of it is engine order *k/2*
+— the half-orders come free. Give that oscillator a `PeriodicWave` built from an order table
+and you have the whole pulse train in one node, band-limited by the browser, with no aliasing
+to manage.
+
+Better still, the two things that generate the characteristic lumpiness — **fixed per-cylinder
+gain differences and fixed firing asymmetry** — are periodic over the cycle, so they can be
+baked straight into the wave's coefficients. A physically correct half-order comb, for free,
+with no runtime cost. (Cylinder-to-cylinder variation repeating once per two revolutions is
+exactly why half-order content exists in real engines; NVH uses the same signal as a misfire
+detector.)
+
+**Build:**
+
+1. **Pulse oscillator.** `OscillatorNode` + `setPeriodicWave`, frequency `rpm / 120`. The wave
+   is generated per vehicle from an order table with harmonic amplitudes rolling off as
+   `a_k ∝ e^(−0.5·k·λ)`, plus the per-cylinder gain spread and asymmetry from §5. Build **two**
+   waves per vehicle — idle and loaded — and crossfade them with load; the loaded one has a
+   smaller λ (brighter, sharper pulse) because a higher rate of pressure rise puts more energy
+   up high.
+2. **Exhaust resonators, fixed.** A bank of peaking `BiquadFilterNode`s at the vehicle's
+   quarter-wave modes (§5), plus one narrow peak in the 50–100 Hz Helmholtz band where real
+   four-cylinder exhaust resonators are tuned and where the "drone" lives. These frequencies
+   **never change with rpm**. A gas-speed note for whoever tunes them: exhaust gas is 400–600 °C,
+   so `c ≈ 20.05·√T(K)` puts it at 400–520 m/s, not 343 — which is why the modes are higher
+   than a cold-air calculation suggests.
+3. **Tailpipe radiation.** One-pole highpass around 80 Hz plus a DC blocker on the output. An
+   open pipe end radiates the *derivative* of volume velocity, so the radiated path is
+   highpass; skipping this is what makes naive models sound boxy.
+4. **Intake noise, gated by the cycle.** Looping noise → lowpass → a `GainNode` whose gain is
+   modulated at audio rate by a second oscillator carrying an "intake window" wave, so it
+   chuffs once per cylinder per cycle. Its gain scales with load, hard — this is the layer that
+   makes Focus sound loaded rather than merely faster.
+5. **Mechanical layer.** A quiet band of noise at 3–7 kHz, gated on the firing phase: valve and
+   injector tick. At idle this is what says "petrol engine" instead of "hum"; under load it is
+   masked and can be left alone. The van adds a knock/piston-slap band at 2.9–3.8 kHz, which is
+   most of what makes a diesel sound like a diesel.
+6. **Irregularity.** A slow zero-mean random walk on `detune` (±1–2% of a cycle) and on a gain
+   trim, filtered at about 75 Hz. Scale it **down** with load: engines are least stable at idle.
+   The tachometer already hunts per vehicle (`idleJitter`), so drive this from the same rpm the
+   gauge shows and the needle and the sound agree.
+7. **Load, finally separate from rpm.** `load` is the mode blend, and it drives, all at once:
+   the idle→loaded wave crossfade, intake gain, irregularity (down), a soft-clip `WaveShaper`
+   whose drive rises with load for growl, and the resonator damping. Overrun is a free extra: on
+   a falling rpm, fade the combustion pulse down and a steady breath of filtered noise up, which
+   is what a real engine does when it is being pushed rather than pushing.
+
+**Rate mapping.** Delete the magic `rpm / 750` ratio and the `playbackRate` path for the synth.
+The oscillator frequency is `rpm / 120` and nothing else, so the engine follows the tacho
+exactly — and the per-vehicle rpm bands in §5 become audible rather than decorative.
+
+### Why not a waveguide
+
+The physically complete model uses bidirectional delay lines for the pipes and muffler
+chambers, with reflection coefficients at each end (≈0.9 at a closed valve, ≈−0.5 at the open
+end, where pressure inverts). It sounds better. It cannot be built from native Web Audio nodes:
+**a `DelayNode` inside a feedback cycle is clamped to one render quantum**, 128 frames, so a
+native comb cannot resonate above roughly 375 Hz, and muffler chambers need delays of well
+under a millisecond. A real waveguide therefore has to live inside an `AudioWorklet` with plain
+`Float32Array` ring buffers.
+
+That is deferred (§20), for three reasons: it needs a hand-written `.js` worklet served from
+`public/`, outside the TypeScript build and its `strict` guarantees; it needs a graceful path
+for when `addModule` fails; and the fixed-resonator version above already delivers the three
+changes that actually kill the drone — an event-rate pulse train, fixed formants, and
+per-cylinder variation. Revisit it if, after tuning, the exhaust still sounds like a filter
+rather than a pipe.
+
+### Acceptance
+
+- With the tab muted, nothing changes; with sound on, idle is recognisably an idle — you can
+  hear individual firing events at 25 Hz, not a tone.
+- Chill and Focus differ in **timbre**, not only pitch: switch between them with the rpm pinned
+  and the difference is still obvious.
+- The three vehicles are distinguishable with eyes closed. Have someone else identify them.
+- No zipper noise or clicks when rpm changes; no DC offset (check the output with an analyser).
+- A 60-second idle does not become monotonous — the irregularity is audible but never sounds
+  like a fault.
+- CPU: the audio thread stays under 2% on integrated graphics; `#debug` frame time unchanged.
+
+**Commit:** `feat(audio): rebuild the engine as a pulse train through fixed resonators`
+
+### Sources
+
+- Doerfler et al., *Physics-Informed Neural Engine Sound Modeling with Differentiable
+  Pulse-Train Synthesis* — https://arxiv.org/html/2603.09391v1 (pulse shape, phase coherence,
+  load gating; the DSP is usable without any of the neural machinery)
+- Doerfler & Wyse, *Analysis-Driven Procedural Generation of an Engine Sound Dataset* —
+  https://arxiv.org/html/2603.07584v2 (order structure, half-orders, resonator bank)
+- Baldan et al., *Physically informed car engine sound synthesis* (IEEE SIVE 2015) —
+  https://www.researchgate.net/publication/280086598, implemented in SkAT-VG/SDT
+  (`src/SDT/SDTMotor.c`) — https://github.com/SkAT-VG/SDT
+- Antonio-R1, *engine-sound-generator*, MIT, Web Audio + AudioWorklet —
+  https://github.com/Antonio-R1/engine-sound-generator (closest reference for this stack;
+  note its `throttle` AudioParam is declared but never read)
+- Farnell, *Designing Sound*, Practical 22: Car Engines — https://aspress.co.uk/sd/practical22.html
+- Smith, *Physical Audio Signal Processing* —
+  https://ccrma.stanford.edu/~jos/pasp/Ideal_Acoustic_Tube.html
+- `DelayNode` in a cycle is clamped to one render quantum —
+  https://www.w3.org/TR/webaudio-1.1/ and https://github.com/WebAudio/web-audio-api/issues/75
+
+---
+
+## 12. Phase 6 — Performance pass, before any new body
 
 **Goal:** buy the budget the two new vehicles will spend.
 **If work stops here:** the hatchback runs cheaper than it did.
@@ -588,7 +752,7 @@ moves. Screenshots unchanged.
 
 ---
 
-## 12. Phase 6 — The picker, persistence and the swap
+## 13. Phase 7 — The picker, persistence and the swap
 
 **Goal:** the user can switch vehicles, with only the hatchback built.
 **If work stops here:** a three-way control that always lands on the hatchback — so land
@@ -653,7 +817,7 @@ the exchange. Escape still exits the radio after a swap. The choice survives a r
 
 ---
 
-## 13. Phase 7 — The yellow sports car
+## 14. Phase 8 — The yellow sports car
 
 **Goal:** the second body, and the cheaper one: four wheels, an open cockpit, the same
 shelter test.
@@ -666,7 +830,7 @@ becomes a generic three.js car.
 - **Paint** `#C08A22`, a deep yellow. Measured: 1.67:1 against the slab, 2.10:1 against the
   road markings, 2.85:1 against asphalt, and at 70% saturation it is the most saturated object
   in a frame whose slab sits at 20% — so it reads unmistakably yellow while still separating
-  from the shelf. A bright lemon (`#E6B32E`) dissolves into the plinth; see §18 if you want it
+  from the shelf. A bright lemon (`#E6B32E`) dissolves into the plinth; see §19 if you want it
   anyway. Trim `#211F1E` — a bright body needs ~1.8× the edge contrast or the splitter, sills
   and mirror stalks vanish. One dark deck stripe `#2E2A27` with a cream `#F0E6D0` pinstripe.
 - **Interior** vinyl `#1E1B19` and oxblood `#6B3A32` fabric. With a bright warm body the lit
@@ -693,7 +857,7 @@ the cockpit at any intensity or speed.
 
 ---
 
-## 14. Phase 8 — The camper van
+## 15. Phase 9 — The camper van
 
 **Goal:** the third body, and the one that stresses the framing.
 **If work stops here:** the feature is complete.
@@ -743,7 +907,7 @@ does not clip at the body's extremes.
 
 ---
 
-## 15. Phase 9 — The world at three scales
+## 16. Phase 10 — The world at three scales
 
 **Goal:** the wider frame the van needs does not break the other two.
 **If work stops here:** the feature ships with a visible plinth edge on the van.
@@ -769,7 +933,7 @@ no abruptly-ending treeline.
 
 ---
 
-## 16. Phase 10 — Tests, polish, docs, v0.3
+## 17. Phase 11 — Tests, polish, docs, v0.3
 
 **Goal:** ship it.
 
@@ -780,6 +944,7 @@ no abruptly-ending treeline.
 | `vehicles.test.ts` | every spec's shelter box encloses its own declared extents including mirrors; the box formula reproduces the hatchback's shipped values; `rearDelay === wheelbase / speed.focus`; exactly four wheel nodes; `radioZoom === 3.2 × viewSize / 5.2` |
 | `shelter.test.ts` | a TypeScript twin of `shelteredByBox` from the GLSL, checked against hand-worked cases per vehicle |
 | `budget.test.ts` | each spec's declared `maxBuckets` is not exceeded by its material set, so a tenth decorative material fails the suite rather than review |
+| `engineVoice.test.ts` | the order table → `PeriodicWave` coefficient mapping: order *h* lands at harmonic index 2*h*; firing frequency identity `rpm × cylinders / 120`; coefficients are normalised and finite; the per-cylinder spread actually produces non-zero half-order terms |
 | `persist.test.ts` | `vehicle` round-trips; an unknown vehicle id is dropped |
 | `engineRig.test.ts` | migrated to `MotionProfile`; the hatchback profile reproduces today's bounds exactly |
 | `scenery.test.ts` | parameterised over cruise speed |
@@ -809,9 +974,9 @@ docs/COMMITS.md's split rule.
 
 ---
 
-## 17. Working agreements (amendments to PLAN-car-init.md §16)
+## 18. Working agreements (amendments to PLAN-car-init.md §16)
 
-Everything in §16 still holds. Added:
+Everything in PLAN-car-init.md §16 still holds. Added:
 
 1. **Where a number lives.** A number another system reads lives on the `VehicleSpec`. A
    number that only draws one body stays a literal in that body's file. A bare number in a
@@ -822,7 +987,7 @@ Everything in §16 still holds. Added:
    swap.
 3. **Screenshot and critique per vehicle**, against §4, before each body's commit — plus one
    three-up comparison as the release gate.
-4. **Phases 0–5 are refactors, not milestones.** They produce no visible change and must land
+4. **Phases 0–4 are refactors, not milestones.** They produce no visible change and must land
    in one sitting; a half-migrated codebase is worse than either end state.
 5. Props under ~0.05 m radius pass explicit low segment counts.
 6. Every module that creates geometry, materials or textures implements `dispose()`, and it is
@@ -830,7 +995,7 @@ Everything in §16 still holds. Added:
 
 ---
 
-## 18. Decisions taken, and how to change them
+## 19. Decisions taken, and how to change them
 
 Each of these is a real product call. The plan commits so it is buildable; here is the lever
 if you disagree.
@@ -845,14 +1010,15 @@ if you disagree.
 | **Re-crank on swap** | No — the needle sweeps, the body dips, the starter stays quiet | Cranking every time is louder and more literal |
 | **Van's radio** | Cab-rear bulkhead | A dinette boombox is more characterful but breaks the single-cluster composition |
 | **Key binding** | `V` cycles | It is free; `1`/`2`/`3` would be direct but collide with nothing useful |
-| **Driver** | One figure, one green hoodie, three poses | Per-vehicle outfits are §17-deferred and would make three cars feel like three places |
+| **Driver** | One figure, one green hoodie, three poses | Per-vehicle outfits are PLAN-car-init.md §17-deferred and would make three cars feel like three places |
+| **Engine synthesis** | Native Web Audio nodes: a `PeriodicWave` pulse train through fixed biquad resonators | A full waveguide model sounds better but must live in an `AudioWorklet`, because a `DelayNode` in a feedback cycle is clamped to 2.7 ms — that means a hand-written `.js` file outside the TypeScript build |
 | **Version** | v0.3 | — |
 
 ---
 
-## 19. Deferred to v0.4 (do not build now, do not architect them out)
+## 20. Deferred to v0.4 (do not build now, do not architect them out)
 
-A six-wheel rig for a real Class C · per-vehicle driver outfits · per-vehicle `SPEED.OMEGA` ·
+An `AudioWorklet` waveguide exhaust with real delay lines and reflection coefficients · per-vehicle recorded engine loops · turbo and backfire · a six-wheel rig for a real Class C · per-vehicle driver outfits · per-vehicle `SPEED.OMEGA` ·
 a cross-fade swap · per-vehicle dressing sets that rotate · pop-up headlights · per-vehicle fog
 density · a fourth vehicle · the glovebox and other per-vehicle interactables · a garage view
 that shows all three at once.
