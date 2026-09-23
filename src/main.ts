@@ -1,6 +1,6 @@
 import { createRenderer } from './core/renderer';
 import { createLoop } from './core/loop';
-import { createStore, defaultState } from './core/store';
+import { createStore, defaultState, type VehicleId } from './core/store';
 import { bindPersistence, loadPrefs } from './core/persist';
 import { createDebugStats } from './ui/debugStats';
 import { createIsoCamera } from './core/isoCamera';
@@ -8,13 +8,14 @@ import { createStage } from './scene/stage';
 import { createRoad } from './scene/world/road';
 import { createScenery } from './scene/world/scenery';
 import { createLighting } from './scene/lighting';
-import { createVehicle } from './scene/car/car';
-import { VEHICLES } from './core/vehicles';
+import { createVehicle, type Vehicle } from './scene/car/car';
+import { VEHICLES, type VehicleSpec } from './core/vehicles';
 import { createSpring } from './motion/spring';
 import { AUDIO, INTERACTION, MOTION, QUALITY, RENDER, SPEED } from './core/constants';
 import { createOverlay } from './ui/overlay';
 import { createStartScreen } from './ui/startScreen';
 import { createModeToggle } from './ui/modeToggle';
+import { createVehiclePicker, parseVehicleHash } from './ui/vehiclePicker';
 import { createWeatherBadge } from './ui/weatherBadge';
 import { createWeatherSource } from './weather/openMeteo';
 import { createWeatherDirector } from './weather/director';
@@ -54,8 +55,11 @@ stage.slab.add(scenery.group);
 const lighting = createLighting();
 stage.scene.add(lighting.group);
 
-const bootSpec = VEHICLES.hatchback;
-const car = createVehicle(stage, bootSpec);
+// Boot precedence: #vehicle= beats the stored preference, which beats the hatchback.
+const bootId = parseVehicleHash(location.hash) ?? prefs.vehicle ?? defaultState.vehicle;
+store.set({ vehicle: bootId });
+const bootSpec = VEHICLES[bootId];
+let car = createVehicle(stage, bootSpec);
 iso.setFraming({
   target: new THREE.Vector3(...bootSpec.camera.target),
   viewSize: bootSpec.camera.viewSize,
@@ -65,6 +69,7 @@ lighting.setVehicle(bootSpec);
 
 const overlay = createOverlay(store);
 createModeToggle(overlay, store);
+const picker = createVehiclePicker(overlay, store);
 createVolumeControl(overlay, store);
 createStartScreen(overlay, store);
 const weather = createWeatherSource(store);
@@ -87,19 +92,30 @@ store.subscribe('engineOn', (on) => {
 
 // Interaction: the registry proves the seam; v1 registers exactly one thing.
 const registry = createRegistry();
-registry.register({
-  id: 'radio',
-  hitbox: car.radio.hitbox,
-  label: 'Radio',
-  focus: { target: car.radio.face.clone().add(new THREE.Vector3(0.02, 0.0, 0.06)), zoom: INTERACTION.RADIO_ZOOM, azimuthOffset: 0 },
-  onFocus() {
-    car.radio.setHover(false);
-  },
-  onBlur() {},
-});
+// Same id on every vehicle, so the Spotify panel's literal test and the README's
+// "how to add an interactable" guide stay true.
+const registerRadio = (c: Vehicle, spec: VehicleSpec): (() => void) =>
+  registry.register({
+    id: 'radio',
+    hitbox: c.radio.hitbox,
+    label: 'Radio',
+    focus: {
+      target: c.radio.face.clone().add(new THREE.Vector3(...spec.anchors.radioFocusOffset)),
+      // radioZoom is a multiplier against viewSize, so it scales with the framing.
+      zoom: spec.camera.radioZoom,
+      azimuthOffset: 0,
+    },
+    onFocus() {
+      car.radio.setHover(false);
+    },
+    onBlur() {},
+  });
+let unregisterRadio = registerRadio(car, bootSpec);
 const raycast = createRaycast(canvas, iso, registry, store, overlay.panels, (id) => car.radio.setHover(id === 'radio'));
 createFocusCamera(iso, registry, store);
-const spotify = createSpotifyPanel(overlay, store, iso, car.radio.face, canvas);
+// One stable vector the panel keeps forever; a swap copies the new anchor into it.
+const radioAnchor = new THREE.Vector3().copy(car.radio.face);
+const spotify = createSpotifyPanel(overlay, store, iso, radioAnchor, canvas);
 store.subscribe('focusedObject', (id) => mixer.duck(id ? AUDIO.DUCK : 1, 400));
 
 // The radio LCD shows the time and the outside temperature while idle.
@@ -146,6 +162,100 @@ let probeDone = qualityWasChosen || coarsePointer;
 
 const debug = createDebugStats(overlay);
 
+/**
+ * Switching vehicles. About 1.1 s, camera-led: the camera starts sliding to the new framing,
+ * the vehicle is exchanged mid-move where a one-frame pop is invisible, and the arriving body
+ * settles onto its springs. The full crank is reserved for the first ignition of a session.
+ *
+ * Built vehicles are cached, hidden, for the rest of the session: three hidden subtrees cost
+ * one visibility test each in projectObject and keep their shader programs alive, so every
+ * swap after the first is recompile-free.
+ */
+const cache = new Map<VehicleId, Vehicle>([[bootId, car]]);
+// Tracked separately from car.id: until every vehicle has its own spec, two ids can share one.
+let currentVehicleId: VehicleId = bootId;
+let swapping = false;
+let pendingVehicle: VehicleId | null = null;
+let lastLights = 0;
+const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+async function swapVehicle(id: VehicleId): Promise<void> {
+  if (currentVehicleId === id) return;
+  if (swapping) {
+    pendingVehicle = id; // coalesce, do not queue
+    return;
+  }
+  swapping = true;
+  picker.setBusy(true);
+  const spec = VEHICLES[id];
+  const st = store.get();
+  const reduced = st.reducedMotion;
+  const ms = reduced ? 0 : INTERACTION.PUSH_IN_MS;
+
+  // Let go of everything that holds the outgoing vehicle.
+  store.set({ focusedObject: null });
+  unregisterRadio();
+  delete car.radio.hitbox.userData.interactableId;
+  raycast.clearHover();
+
+  iso.setFraming({
+    target: new THREE.Vector3(...spec.camera.target),
+    viewSize: spec.camera.viewSize,
+    minViewWidth: spec.camera.minViewWidth,
+  });
+  // One tween straight from wherever the camera is to the new pose. Do not reset() first:
+  // startTween resolves the previous promise early and two tweens would fight.
+  void iso.frame(new THREE.Vector3(...spec.camera.target), 1, ms);
+
+  // Build or reuse, hidden, then warm its programs before anything is shown.
+  let next = cache.get(id);
+  if (!next) {
+    next = createVehicle(stage, spec);
+    cache.set(id, next);
+  }
+  next.setVisible(false);
+  next.setQuality(st.quality);
+  next.seedLights(lastLights);
+  rig.renderer.compile(stage.scene, iso.camera);
+
+  await wait(ms / 2);
+
+  // The exchange, mid-move.
+  car.setVisible(false);
+  next.setVisible(true);
+  car = next;
+  currentVehicleId = id;
+  unregisterRadio = registerRadio(car, spec);
+  radioAnchor.copy(car.radio.face);
+  director.setVehicle(spec, car);
+  lighting.setVehicle(spec);
+  // Must precede any engineOn change: the store notifies synchronously, so the new vehicle
+  // would otherwise crank with the old one's starter.
+  layers.setEngineProfile(spec.audio);
+  if (store.get().engineOn) car.ignite(); // needle sweep and the dip, without the crank
+  updateLcd();
+  // The hitbox is raycast before the next render, so give it a world matrix now.
+  stage.bodyRig.updateMatrixWorld(true);
+  (window as unknown as { shotgun: { car: Vehicle } }).shotgun.car = car;
+  // Let the probe re-measure for the new body unless the user pinned quality.
+  if (!qualityWasChosen && !coarsePointer) {
+    probeDone = false;
+    probeT = 0;
+    probeAcc = 0;
+    probeN = 0;
+  }
+
+  await wait(ms / 2 + (reduced ? 0 : 200));
+  swapping = false;
+  picker.setBusy(false);
+  if (pendingVehicle) {
+    const p = pendingVehicle;
+    pendingVehicle = null;
+    void swapVehicle(p);
+  }
+}
+store.subscribe('vehicle', (id) => void swapVehicle(id));
+
 const modeSpring = createSpring(0);
 const engineSpring = createSpring(0);
 const speedSpring = createSpring(0);
@@ -180,6 +290,7 @@ loop.onTick((dt, elapsed) => {
     reducedMotion: st.reducedMotion,
     coldBoost: look.coldBoost,
   });
+  lastLights = lights;
   lighting.setIgnition(lights);
 
   layers.update(dt, {

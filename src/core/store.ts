@@ -25,6 +25,7 @@ export interface WeatherState {
 export interface AppState {
   engineOn: boolean; // false until the user's first gesture
   mode: Mode;
+  vehicle: VehicleId;
   weather: WeatherState | null;
   weatherStatus: 'idle' | 'loading' | 'ready' | 'error';
   focusedObject: string | null; // Interactable id, e.g. 'radio'
@@ -81,6 +82,7 @@ export function createStore(initial: AppState): Store {
 export const defaultState: AppState = {
   engineOn: false,
   mode: 'chill',
+  vehicle: 'hatchback',
   weather: null,
   weatherStatus: 'idle',
   focusedObject: null,

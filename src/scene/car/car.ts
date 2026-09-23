@@ -53,6 +53,10 @@ export interface Vehicle {
   ignite(): void;
   /** Low quality hides the body's detail group: free at runtime and reversible. */
   setQuality(q: 'low' | 'high'): void;
+  /** Show or hide every node this vehicle owns, without detaching it. */
+  setVisible(on: boolean): void;
+  /** Seed the internal lamp ramp from the outgoing vehicle so a swap does not flash. */
+  seedLights(k: number): void;
   dispose(): void;
 }
 
@@ -138,6 +142,18 @@ export function createVehicle(stage: Stage, v: VehicleSpec = HATCHBACK): Vehicle
     },
     setQuality(q) {
       built.detailGroup.visible = q !== 'low';
+    },
+    setVisible(on) {
+      built.group.visible = on;
+      driverRoot.visible = on;
+      wheels.group.visible = on;
+      exhaust.group.visible = on;
+    },
+    seedLights(k) {
+      lights = k;
+      body.setLights(k, k);
+      body.setDashGlow(k);
+      radio.setPower(k);
     },
     group: built.group,
     body,
