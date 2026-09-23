@@ -23,8 +23,10 @@ const S = CAR.SILL_Y;
 const W = CAR.FAR_WALL_Z;
 const T = CAR.FAR_WALL_THICKNESS;
 
-const FRONT_WINDOW: [number, number][] = [[0.5, 1.02], [0.17, 1.33], [-0.28, 1.33], [-0.28, 1.02]];
-const REAR_WINDOW: [number, number][] = [[-0.38, 1.02], [-0.38, 1.33], [-1.1, 1.33], [-1.27, 1.02]];
+const B = CAR.BELT_Y;
+const R = CAR.ROOF_Y;
+const FRONT_WINDOW: [number, number][] = [[0.5, B], [0.17, 1.33], [-0.28, 1.33], [-0.28, B]];
+const REAR_WINDOW: [number, number][] = [[-0.38, B], [-0.38, 1.33], [-1.1, 1.33], [-1.27, B]];
 
 function sideProfile(): THREE.Shape {
   const s = new THREE.Shape();
@@ -32,8 +34,8 @@ function sideProfile(): THREE.Shape {
   s.lineTo(-1.86, 0.52);
   s.lineTo(-1.8, 0.98);
   s.lineTo(-1.3, 1.37);
-  s.quadraticCurveTo(-1.22, 1.415, -1.1, 1.415);
-  s.lineTo(0.02, 1.415);
+  s.quadraticCurveTo(-1.22, R, -1.1, R);
+  s.lineTo(0.02, R);
   s.quadraticCurveTo(0.12, 1.4, 0.18, 1.35);
   s.lineTo(0.62, 1.0);
   s.lineTo(0.66, 0.99);

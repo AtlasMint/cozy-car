@@ -1,4 +1,4 @@
-import { AUDIO } from '../core/constants';
+import { AUDIO, MOTION, SPEED } from '../core/constants';
 import { damp } from '../util/math';
 import type { Mixer } from './mixer';
 
@@ -138,7 +138,7 @@ export function createLayers(mixer: Mixer): Layers {
         return {
           nodes,
           setRate: (r) => {
-            // ~750 rpm 4-cylinder → firing frequency ≈ 25 Hz
+            // idle rpm, 4-cylinder → firing frequency ≈ 25 Hz
             const f = 25 * r;
             oscA.frequency.setTargetAtTime(f, ctx.currentTime, 0.08);
             oscB.frequency.setTargetAtTime(f * 1.007, ctx.currentTime, 0.08);
@@ -226,7 +226,7 @@ export function createLayers(mixer: Mixer): Layers {
       const ctx = mixer.context;
       if (!ctx || ctx.state !== 'running') return;
       const L = AUDIO.LEVELS;
-      const speedK = Math.min(1, d.speed / 22);
+      const speedK = Math.min(1, d.speed / SPEED.FOCUS);
       setLevel('engine', L.engine * d.engine * (0.8 + 0.2 * d.blend), dt);
       setLevel('roadNoise', L.roadNoise * speedK * d.engine, dt);
       setLevel('rain', L.rain * d.rain, dt);
@@ -237,7 +237,7 @@ export function createLayers(mixer: Mixer): Layers {
       rate = damp(rate, targetRate, 1.6, dt);
       const engine = layers.get('engine');
       if (engine?.source) engine.source.playbackRate.setTargetAtTime(rate, ctx.currentTime, 0.1);
-      engine?.synth?.setRate?.(Math.max(0.2, d.rpm / 750));
+      engine?.synth?.setRate?.(Math.max(0.2, d.rpm / MOTION.RPM.idle));
     },
     thunder(strength) {
       const ctx = mixer.context;

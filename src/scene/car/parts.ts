@@ -13,7 +13,6 @@ export const mats = {
   vinyl: std(PALETTE.VINYL, 0.85),
   vinylLight: std('#3B302A', 0.85),
   fabric: std(PALETTE.FABRIC, 0.95),
-  fabricLight: std(PALETTE.FABRIC_LIGHT, 0.95),
   fabricDark: std('#4E4138', 0.95),
   carpet: std('#4A3B32', 0.98),
   metal: std('#55514D', 0.5, { metalness: 0.45 }),

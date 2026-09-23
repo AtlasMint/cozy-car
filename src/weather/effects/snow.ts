@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { WEATHER_FX, WORLD } from '../../core/constants';
+import { SPEED, WEATHER_FX, WORLD } from '../../core/constants';
 import { mulberry32 } from '../../util/math';
 import type { WeatherEffect } from '../director';
 import { CAMERA_AXES_GLSL, OFFSCREEN_GLSL, SHELTER_GLSL, instancedQuads } from './instanced';
@@ -125,7 +125,7 @@ export function createSnow(quality: 'low' | 'high'): SnowEffect {
     },
     update(dt, speed) {
       uniforms.uTime.value += dt;
-      uniforms.uShear.value = Math.min(1, speed / 22) * S.shear;
+      uniforms.uShear.value = Math.min(1, speed / SPEED.FOCUS) * S.shear;
     },
     dispose() {
       geometry.dispose();

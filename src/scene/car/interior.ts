@@ -129,10 +129,10 @@ export function createInterior(b: Builder): InteriorRig {
   return {
     wheelNode,
     setTacho(rpm) {
-      tacho.rotation.x = needleAngle(rpm / 8000);
+      tacho.rotation.x = needleAngle(rpm / CAR.GAUGE.rpmFull);
     },
     setSpeedo(kmh) {
-      speedo.rotation.x = needleAngle(kmh / 180);
+      speedo.rotation.x = needleAngle(kmh / CAR.GAUGE.kmhFull);
     },
     setDashGlow(k) {
       mats.dashGlow.emissiveIntensity = k * 1.2;

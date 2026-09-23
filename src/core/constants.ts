@@ -89,7 +89,8 @@ export const WORLD = {
 } as const;
 
 export const CAR = {
-  LENGTH: 3.8,
+  /** Overall length, bumper centre to bumper centre. Consumed by chassis.ts. */
+  LENGTH: 3.84,
   WIDTH: 1.68,
   /** Inner face of each side wall (doors, glass, pillars); the near wall mirrors at −FAR_WALL_Z. */
   FAR_WALL_Z: 0.79,
@@ -97,9 +98,10 @@ export const CAR = {
   FLOOR_Y: 0.28,
   FLOOR_TOP_Y: 0.32,
   SILL_Y: 0.46,
-  BELT_Y: 1.0,
-  /** Top of the window frames and header rails. There is no roof panel: the cabin is open. */
-  ROOF_Y: 1.42,
+  /** Window sill line — the bottom edge of the side glass. Consumed by shell.ts. */
+  BELT_Y: 1.02,
+  /** Top of the window frames. There is no roof panel: the cabin is open. Consumed by shell.ts. */
+  ROOF_Y: 1.415,
   WHEELBASE: 2.4,
   TRACK: 1.38,
   WHEEL_RADIUS: 0.29,
@@ -116,6 +118,8 @@ export const CAR = {
   /** Rear face of the radio faceplate; the camera push-in centres on this. */
   RADIO_FACE: [0.552, 0.845, 0] as const,
   MIRROR_PIVOT: [0.22, 1.19, 0.0] as const,
+  /** Full-scale deflection of the two dials. Consumed by interior.ts. */
+  GAUGE: { rpmFull: 8000, kmhFull: 180 },
 } as const;
 
 export const DRIVER = {

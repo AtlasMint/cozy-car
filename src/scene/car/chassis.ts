@@ -39,8 +39,9 @@ export function createChassis(b: Builder): ChassisRig {
   // Bulkhead between the engine bay and the cabin.
   b.box(0.06, 0.61, CAR.WIDTH - 0.06, mats.metalDark, { x: 0.92, y: FT + 0.305 });
   // Bumpers — whole.
-  b.box(0.08, 0.16, CAR.WIDTH, mats.trim, { x: 1.92, y: 0.44 });
-  b.box(0.08, 0.16, CAR.WIDTH, mats.trim, { x: -1.92, y: 0.44 });
+  const halfLength = CAR.LENGTH / 2;
+  b.box(0.08, 0.16, CAR.WIDTH, mats.trim, { x: halfLength, y: 0.44 });
+  b.box(0.08, 0.16, CAR.WIDTH, mats.trim, { x: -halfLength, y: 0.44 });
 
   // Engine — the thing that is running — under the bonnet.
   const ez = -0.07;
