@@ -144,8 +144,9 @@ stageRoot
    clears the near wall only when `y + z + wallZ > wallTopY`; `floorExposure()` turns that into
    the fraction of cabin floor on show. The hatchback is 0.31 and the roadster 0.42. Below
    `SEE_THROUGH_BELOW` the body is a box you cannot look into, `seeThrough(v)` returns true, and
-   the build must draw its two camera-facing walls — near (−z) and rear (−x) — with `m.ghost`
-   instead of `m.body`. The camper does exactly this.
+   the build must leave out its two camera-facing walls — near (−z) and rear (−x) — exactly as
+   every vehicle leaves out its roof. Leave the frame: rails, posts, pillars, a wheel arch over
+   each wheel on that side, and anything that was only mounted on the panel goes with it.
 4. Do not add a material key, a light or a material feature flag. The point-light count and the
    material set are fixed at boot; changing either recompiles every lit program on a swap.
 
@@ -161,8 +162,8 @@ with glTF:
   the driver's hands are parented to. The interactable id stays `radio` on every vehicle.
 - Keep the cabin open — no roof panel — so the camera can see in, and keep that vehicle's
   `shelter` box on its spec enclosing the whole body including the roof volume. A body tall
-  enough that `seeThrough()` is true also needs its near and rear walls on a transparent
-  material, or the open roof alone will not be enough to see inside.
+  enough that `seeThrough()` is true needs its near and rear walls left out too, or the open
+  roof alone will not be enough to see inside.
 
 Nothing else needs to change.
 
@@ -177,10 +178,12 @@ Nothing else needs to change.
 - The car never moves. In Focus the world moves past it on a treadmill: one damped speed value
   feeds road scroll, scenery, wheel spin, motion amplitudes and the audio mix.
 - The missing roof is a viewing conceit, and on a tall body so are the two walls the camera
-  looks through. Nothing is ever cut away: the camper's walls are all present, with their
-  windows, decals and skirts, they simply stop being opaque. Rain and snow are dropped by a
-  ray/box test against the whole car including the roof volume, so nothing falls into the open
-  cabin and the car reads as sheltered.
+  looks through. What is left out is always a *panel*, never a slice: the frame stays, the way
+  the hatchback keeps its window frames and header rails with no roof between them. The camper
+  keeps its rails, posts, rear pillars and a wheel arch over each near wheel — which it needs,
+  because a wheel's top stands above the cabin floor and without an arch it would rise into the
+  room. Rain and snow are dropped by a ray/box test against the whole car including the roof
+  volume, so nothing falls into the open cabin and the car reads as sheltered.
 
 See [docs/PLAN-car.md](docs/PLAN-car.md) for the original implementation plan and
 [docs/archive/](docs/archive/) for the version logs (`v0.1` cutaway, `v0.2` open roof, `v0.3`
