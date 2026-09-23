@@ -11,6 +11,23 @@ import { el, type Overlay } from './overlay';
  * dragging the slider to zero a mute, for free and by construction. The only thing the button
  * remembers is where to come back to.
  */
+
+/** Muted is simply zero. There is no second flag that could disagree with the slider. */
+export function isMuted(volume: number): boolean {
+  return volume <= 0;
+}
+
+/**
+ * Pressing the speaker: where the volume goes, and what to remember for next time. Pure.
+ *
+ * `restore` is only ever written from a non-zero level, so dragging the slider to zero and
+ * then pressing un-mute returns you to where you were before you dragged, not to zero.
+ */
+export function toggleMute(current: number, restore: number): { volume: number; restore: number } {
+  if (!isMuted(current)) return { volume: 0, restore: current };
+  return { volume: restore > 0 ? restore : AUDIO.DEFAULT_VOLUME, restore };
+}
+
 const ICON_ON = /* html */ `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">
 <path d="M4 9.4h3.3L12 5.4v13.2l-4.7-4H4z" fill="currentColor"/>
 <path d="M15.4 9.3a3.9 3.9 0 0 1 0 5.4M18.1 6.8a7.5 7.5 0 0 1 0 10.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
@@ -41,7 +58,7 @@ export function createVolumeControl(overlay: Overlay, store: Store): { dispose()
   let restore = store.get().masterVolume || AUDIO.DEFAULT_VOLUME;
 
   const render = (v: number) => {
-    const muted = v <= 0;
+    const muted = isMuted(v);
     input.value = String(v);
     button.innerHTML = muted ? ICON_MUTED : ICON_ON;
     const label = muted ? 'Unmute' : 'Mute';
@@ -57,13 +74,9 @@ export function createVolumeControl(overlay: Overlay, store: Store): { dispose()
   });
 
   button.addEventListener('click', () => {
-    const v = store.get().masterVolume;
-    if (v > 0) {
-      restore = v;
-      store.set({ masterVolume: 0 });
-    } else {
-      store.set({ masterVolume: restore > 0 ? restore : AUDIO.DEFAULT_VOLUME });
-    }
+    const next = toggleMute(store.get().masterVolume, restore);
+    restore = next.restore;
+    store.set({ masterVolume: next.volume });
   });
 
   render(store.get().masterVolume);
