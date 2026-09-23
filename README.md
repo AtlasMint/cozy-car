@@ -34,9 +34,10 @@ drizzle, rain, heavyRain, snow, thunder); `#debug` shows a stats panel.
 ## Vehicles
 
 The picker sits in the bottom-right cluster and **V** cycles through the three. The choice is
-remembered. Switching takes about a second: the camera slides to the new framing, the vehicle
-is exchanged mid-move, and the arriving body settles onto its springs. Each vehicle is built
-once and then kept hidden for the session, so every switch after the first is instant.
+remembered. Switching happens behind a fade to black: the camera jumps to the new framing, the
+body is built or revealed and its shader programs are linked, and the fade back always reveals
+a vehicle that has already been drawn once. Each vehicle is built once and then kept hidden for
+the session, so every switch after the first has nothing left to link.
 
 Everything a vehicle changes lives in one spec in [src/core/vehicles.ts](src/core/vehicles.ts):
 dimensions, cabin geometry, anchors, camera framing, the weather shelter box, the motion
@@ -88,7 +89,7 @@ Every tunable is in [src/core/constants.ts](src/core/constants.ts), grouped by s
 | `WEATHER` | Fallback location, timeouts, cache TTL |
 | `WEATHER_FX` | Fog per kind, precipitation counts/shape, glass, lightning, headlights, streetlights, per-kind sky and light looks, the car exclusion box |
 | `AUDIO` | Absolute mix levels and the duck factor; per-vehicle gains live on the spec |
-| `INTERACTION`, `SPOTIFY` | Hover rate, push-in timing and zoom, preset playlists |
+| `INTERACTION`, `SPOTIFY` | Hover rate, push-in and swap-fade timing, zoom, preset playlists |
 | `PALETTE` | Every colour |
 
 ## Layout
@@ -103,8 +104,8 @@ src/
   weather/     openMeteo, wmo (pure mapping), director, effects/
   interaction/ interactables registry, raycast, focusCamera
   audio/       mixer, layers, engineVoice (the pulse-train engine)
-  ui/          overlay, startScreen, modeToggle, vehiclePicker, weatherBadge, volume,
-               locationPicker, spotifyPanel, debugStats
+  ui/          overlay, curtain (the swap fade), startScreen, modeToggle, vehiclePicker,
+               weatherBadge, volume (mute + slider), locationPicker, spotifyPanel, debugStats
   util/        math, tests/
 ```
 
@@ -139,9 +140,12 @@ stageRoot
 2. Add a `VehicleSpec` in [src/core/vehicles.ts](src/core/vehicles.ts) and a `VehicleId` in
    `store.ts`. Everything else — camera framing, shelter box, motion, engine voice, driver pose,
    lighting, audio — is data on that spec.
-3. Derive the wall top rather than choosing it: a point in the cabin is visible past the near
-   wall only when `y + z + wallZ > wallTopY`, and the hatchback shows about 30% of its floor.
-   A taller box shows less and reads as a shoebox you cannot see into.
+3. Measure the vehicle honestly, then check what the camera can still see. A point in the cabin
+   clears the near wall only when `y + z + wallZ > wallTopY`; `floorExposure()` turns that into
+   the fraction of cabin floor on show. The hatchback is 0.31 and the roadster 0.42. Below
+   `SEE_THROUGH_BELOW` the body is a box you cannot look into, `seeThrough(v)` returns true, and
+   the build must draw its two camera-facing walls — near (−z) and rear (−x) — with `m.ghost`
+   instead of `m.body`. The camper does exactly this.
 4. Do not add a material key, a light or a material feature flag. The point-light count and the
    material set are fixed at boot; changing either recompiles every lit program on a swap.
 
@@ -156,7 +160,9 @@ with glTF:
 - Keep the hitbox proxies (`hitbox:radio`) and the steering wheel node (`steeringWheel`), which
   the driver's hands are parented to. The interactable id stays `radio` on every vehicle.
 - Keep the cabin open — no roof panel — so the camera can see in, and keep that vehicle's
-  `shelter` box on its spec enclosing the whole body including the roof volume.
+  `shelter` box on its spec enclosing the whole body including the roof volume. A body tall
+  enough that `seeThrough()` is true also needs its near and rear walls on a transparent
+  material, or the open roof alone will not be enough to see inside.
 
 Nothing else needs to change.
 
@@ -170,9 +176,13 @@ Nothing else needs to change.
   cream — a warm neutral body cannot separate from a warm neutral slab at any lightness.
 - The car never moves. In Focus the world moves past it on a treadmill: one damped speed value
   feeds road scroll, scenery, wheel spin, motion amplitudes and the audio mix.
-- The missing roof is a viewing conceit. Rain and snow are dropped by a ray/box test against
-  the whole car including the roof volume, so nothing falls into the open cabin and the car
-  reads as sheltered.
+- The missing roof is a viewing conceit, and on a tall body so are the two walls the camera
+  looks through. Nothing is ever cut away: the camper's walls are all present, with their
+  windows, decals and skirts, they simply stop being opaque. Rain and snow are dropped by a
+  ray/box test against the whole car including the roof volume, so nothing falls into the open
+  cabin and the car reads as sheltered.
 
 See [docs/PLAN-car.md](docs/PLAN-car.md) for the original implementation plan and
-[docs/archive/](docs/archive/) for the version logs (`v0.1` cutaway, `v0.2` open roof, `v0.3` three vehicles), and [docs/PLAN-cars.md](docs/PLAN-cars.md) for the plan this release followed.
+[docs/archive/](docs/archive/) for the version logs (`v0.1` cutaway, `v0.2` open roof, `v0.3`
+three vehicles, `v0.4` full-height camper), and [docs/PLAN-cars.md](docs/PLAN-cars.md) for the
+plan v0.3 followed.

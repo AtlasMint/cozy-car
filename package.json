@@ -1,6 +1,6 @@
 {
   "name": "shotgun",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "description": "Three open-top vehicles on a shelf, idling in your weather. Ambient companion built with Bun + three.js.",
