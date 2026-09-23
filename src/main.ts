@@ -60,7 +60,7 @@ createModeToggle(overlay, store);
 createVolumeControl(overlay, store);
 createStartScreen(overlay, store);
 const weather = createWeatherSource(store);
-createWeatherBadge(overlay, store, () => void weather.refresh(true));
+createWeatherBadge(overlay, store, weather);
 const director = createWeatherDirector({ store, stage, lighting, road, scenery, car });
 weather.start();
 

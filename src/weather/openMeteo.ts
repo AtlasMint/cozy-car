@@ -9,12 +9,69 @@ import { isWeatherKind, wmoToKind } from './wmo';
  * Never blocks first paint: the scene renders at `weatherStatus: 'loading'` and the real
  * state cross-fades in.
  *
+ * The user can pick a place in the badge; it is resolved through Open-Meteo's geocoding API,
+ * stored under its own key and used instead of geolocation until cleared.
+ *
  * Debug override: `#weather=<kind>[&night=1][&temp=-3]` forces a state without a request.
  */
 export interface WeatherSource {
   start(): void;
   refresh(force?: boolean): Promise<void>;
+  /** Use a chosen place (or `null` to go back to geolocation), then refetch. */
+  setLocation(loc: ChosenLocation | null): Promise<void>;
+  getLocation(): ChosenLocation | null;
   stop(): void;
+}
+
+export interface ChosenLocation {
+  lat: number;
+  lon: number;
+  label: string;
+}
+
+export interface GeoResult {
+  label: string;
+  lat: number;
+  lon: number;
+}
+
+interface GeocodeRow {
+  name?: string;
+  admin1?: string;
+  country?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+/** "Berlin, Berlin, Germany" reads badly; drop the region when it repeats the name. Pure. */
+export function formatPlace(r: { name?: string; admin1?: string; country?: string }): string {
+  const parts = [r.name, r.admin1 && r.admin1 !== r.name ? r.admin1 : undefined, r.country].filter((x): x is string => !!x && x.trim().length > 0);
+  return parts.join(', ');
+}
+
+/** Parse a geocoding response into results with usable coordinates. Pure. */
+export function parseGeocode(data: unknown): GeoResult[] {
+  const rows = (data as { results?: GeocodeRow[] } | null)?.results;
+  if (!Array.isArray(rows)) return [];
+  const out: GeoResult[] = [];
+  const seen = new Set<string>();
+  for (const r of rows) {
+    if (typeof r.latitude !== 'number' || typeof r.longitude !== 'number' || !r.name) continue;
+    const label = formatPlace(r);
+    if (seen.has(label)) continue;
+    seen.add(label);
+    out.push({ label, lat: r.latitude, lon: r.longitude });
+  }
+  return out;
+}
+
+export async function geocode(query: string, fetchFn: typeof fetch = fetch.bind(globalThis), signal?: AbortSignal): Promise<GeoResult[]> {
+  const q = query.trim();
+  if (q.length < WEATHER.GEOCODE_MIN_CHARS) return [];
+  const url = `${WEATHER.GEOCODE_URL}?name=${encodeURIComponent(q)}&count=${WEATHER.GEOCODE_COUNT}&language=en&format=json`;
+  const res = await fetchFn(url, { signal: signal ?? AbortSignal.timeout(WEATHER.FETCH_TIMEOUT_MS) });
+  if (!res.ok) throw new Error(`geocoding ${res.status}`);
+  return parseGeocode(await res.json());
 }
 
 interface Cached {
@@ -60,7 +117,7 @@ function labelFromTimezone(tz: string | undefined, fallback: string): string {
   return last ? last.replace(/_/g, ' ') : fallback;
 }
 
-export function toWeatherState(data: OpenMeteoResponse, isFallbackLocation: boolean, now = Date.now()): WeatherState | null {
+export function toWeatherState(data: OpenMeteoResponse, isFallbackLocation: boolean, now = Date.now(), label?: string): WeatherState | null {
   const c = data.current;
   if (!c) return null;
   return {
@@ -69,7 +126,7 @@ export function toWeatherState(data: OpenMeteoResponse, isFallbackLocation: bool
     windSpeedKmh: c.wind_speed_10m,
     isDay: c.is_day === 1,
     precipitationMm: c.precipitation,
-    locationLabel: labelFromTimezone(data.timezone, isFallbackLocation ? WEATHER.FALLBACK_LOCATION.label : 'Your location'),
+    locationLabel: label ?? labelFromTimezone(data.timezone, isFallbackLocation ? WEATHER.FALLBACK_LOCATION.label : 'Your location'),
     isFallbackLocation,
     fetchedAt: now,
   };
@@ -98,6 +155,25 @@ export function createWeatherSource(store: Store, fetchFn: typeof fetch = fetch.
       /* private mode etc. */
     }
   };
+  const readChosen = (): ChosenLocation | null => {
+    try {
+      const raw = localStorage.getItem(WEATHER.LOCATION_KEY);
+      if (!raw) return null;
+      const c = JSON.parse(raw) as ChosenLocation;
+      return typeof c.lat === 'number' && typeof c.lon === 'number' && typeof c.label === 'string' ? c : null;
+    } catch {
+      return null;
+    }
+  };
+  const writeChosen = (c: ChosenLocation | null) => {
+    try {
+      if (c) localStorage.setItem(WEATHER.LOCATION_KEY, JSON.stringify(c));
+      else localStorage.removeItem(WEATHER.LOCATION_KEY);
+    } catch {
+      /* ignore */
+    }
+  };
+  let chosen = readChosen();
 
   const locate = (): Promise<{ lat: number; lon: number; fallback: boolean }> =>
     new Promise((resolve) => {
@@ -123,14 +199,14 @@ export function createWeatherSource(store: Store, fetchFn: typeof fetch = fetch.
       );
     });
 
-  const fetchWeather = async (lat: number, lon: number, fallback: boolean): Promise<WeatherState> => {
+  const fetchWeather = async (lat: number, lon: number, fallback: boolean, label?: string): Promise<WeatherState> => {
     const url =
       `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}` +
       `&current=temperature_2m,precipitation,weather_code,is_day,wind_speed_10m,cloud_cover&timezone=auto`;
     const res = await fetchFn(url, { signal: AbortSignal.timeout(WEATHER.FETCH_TIMEOUT_MS) });
     if (!res.ok) throw new Error(`open-meteo ${res.status}`);
     const data = (await res.json()) as OpenMeteoResponse;
-    const state = toWeatherState(data, fallback);
+    const state = toWeatherState(data, fallback, Date.now(), label);
     if (!state) throw new Error('open-meteo: no current block');
     return state;
   };
@@ -158,17 +234,22 @@ export function createWeatherSource(store: Store, fetchFn: typeof fetch = fetch.
     if (inflight) return inflight;
     inflight = (async () => {
       const cached = readCache();
-      const fresh = cached && Date.now() - cached.state.fetchedAt < WEATHER.CACHE_TTL_MS;
-      if (cached && !force) {
+      const cacheMatches = !!cached && (!chosen || (Math.abs(cached.lat - chosen.lat) < 1e-6 && Math.abs(cached.lon - chosen.lon) < 1e-6));
+      const fresh = cacheMatches && cached && Date.now() - cached.state.fetchedAt < WEATHER.CACHE_TTL_MS;
+      if (cached && cacheMatches && !force) {
         // Show whatever we have immediately; refresh behind it if stale.
         store.set({ weather: cached.state, weatherStatus: fresh ? 'ready' : 'loading' });
         if (fresh) return;
-      } else if (!store.get().weather) {
+      } else {
         store.set({ weatherStatus: 'loading' });
       }
       try {
-        const loc = cached && !force ? { lat: cached.lat, lon: cached.lon, fallback: cached.state.isFallbackLocation } : await locate();
-        const state = await fetchWeather(loc.lat, loc.lon, loc.fallback);
+        const loc = chosen
+          ? { lat: chosen.lat, lon: chosen.lon, fallback: false, label: chosen.label }
+          : cached && cacheMatches && !force
+            ? { lat: cached.lat, lon: cached.lon, fallback: cached.state.isFallbackLocation, label: undefined }
+            : { ...(await locate()), label: undefined };
+        const state = await fetchWeather(loc.lat, loc.lon, loc.fallback, loc.label);
         writeCache({ state, lat: loc.lat, lon: loc.lon });
         store.set({ weather: state, weatherStatus: 'ready' });
       } catch (err) {
@@ -199,6 +280,12 @@ export function createWeatherSource(store: Store, fetchFn: typeof fetch = fetch.
       window.addEventListener('hashchange', onHash);
     },
     refresh,
+    async setLocation(loc) {
+      chosen = loc;
+      writeChosen(loc);
+      await refresh(true);
+    },
+    getLocation: () => chosen,
     stop() {
       stopped = true;
       clearInterval(timer);
