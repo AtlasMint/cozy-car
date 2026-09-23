@@ -6,56 +6,104 @@ function std(color: THREE.ColorRepresentation, roughness: number, extra: THREE.M
   return new THREE.MeshStandardMaterial({ color, roughness, metalness: 0, ...extra });
 }
 
-/** Shared materials for the whole car. Disposed once by the car assembler. */
-export const mats = {
-  body: std(PALETTE.BODY, 0.55),
-  trim: std(PALETTE.BODY_TRIM, 0.8),
-  vinyl: std(PALETTE.VINYL, 0.85),
-  vinylLight: std('#3B302A', 0.85),
-  fabric: std(PALETTE.FABRIC, 0.95),
-  fabricDark: std('#4E4138', 0.95),
-  carpet: std('#4A3B32', 0.98),
-  metal: std('#55514D', 0.5, { metalness: 0.45 }),
-  metalDark: std('#2E2B29', 0.6, { metalness: 0.3 }),
-  chrome: std(PALETTE.CHROME, 0.22, { metalness: 0.9 }),
-  tyre: std(PALETTE.TYRE, 0.95),
-  hub: std(PALETTE.HUB, 0.45, { metalness: 0.4 }),
-  glass: new THREE.MeshStandardMaterial({
-    color: PALETTE.GLASS,
-    transparent: true,
-    opacity: 0.4,
-    roughness: 0.12,
-    metalness: 0,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-  }),
-  tailLight: std(PALETTE.TAIL_LIGHT, 0.35, { emissive: PALETTE.TAIL_LIGHT, emissiveIntensity: 0.15 }),
-  indicator: std('#E0A23A', 0.35, { emissive: '#E0A23A', emissiveIntensity: 0.1 }),
-  headLight: std(PALETTE.HEAD_LIGHT, 0.3, { emissive: PALETTE.HEAD_LIGHT, emissiveIntensity: 0 }),
-  dashGlow: std(PALETTE.DASH_GLOW, 0.6, { emissive: PALETTE.DASH_GLOW, emissiveIntensity: 0 }),
-  dialFace: std('#181310', 0.6),
-  needle: std('#FF6A3D', 0.5, { emissive: '#FF6A3D', emissiveIntensity: 0 }),
-  lcd: std(PALETTE.LCD, 0.5, { emissive: PALETTE.LCD, emissiveIntensity: 0 }),
-  plate: std('#E9E4D2', 0.6),
-  rubber: std('#1B1A19', 0.95),
-  engine: std('#4A4744', 0.55, { metalness: 0.4 }),
-  engineCover: std('#6B2F2A', 0.6),
-  paper: std('#E8E2D6', 0.9),
-  cardboard: std('#B08D5C', 0.95),
-  jacket: std('#A98B3C', 0.9),
-  freshener: std('#3E8A5A', 0.9),
-  sticker: std('#E8D7B9', 0.8),
-  skin: std(PALETTE.SKIN, 0.85),
-  hair: std(PALETTE.HAIR, 0.9),
-  hoodie: std(PALETTE.HOODIE, 0.92),
-  hoodieDark: std('#396B44', 0.92),
-  denim: std('#3A4A63', 0.95),
-} as const;
+/**
+ * Paint and upholstery that vary per vehicle. Everything else in a material set is shared
+ * hardware — lamps, glass, rubber, chrome — which the art direction keeps identical across
+ * the range so the three read as one toy line.
+ */
+export interface PaintSpec {
+  body: string;
+  trim: string;
+  hub: string;
+  vinyl: string;
+  fabric: string;
+  fabricDark: string;
+}
 
-export type MaterialKey = keyof typeof mats;
+/**
+ * One material set per vehicle. These cannot be shared: `shell.setLights` and
+ * `interior.setDashGlow` write `emissiveIntensity` into them every frame, and `dressing`
+ * mutates `side` at build time, so two vehicles sharing one set would fight over the lamps.
+ * The set owns its materials and disposes them with the vehicle.
+ */
+export function createMaterials(paint: PaintSpec) {
+  const m = {
+    body: std(paint.body, 0.55),
+    trim: std(paint.trim, 0.8),
+    vinyl: std(paint.vinyl, 0.85),
+    vinylLight: std('#3B302A', 0.85),
+    fabric: std(paint.fabric, 0.95),
+    fabricDark: std(paint.fabricDark, 0.95),
+    carpet: std('#4A3B32', 0.98),
+    metal: std('#55514D', 0.5, { metalness: 0.45 }),
+    metalDark: std('#2E2B29', 0.6, { metalness: 0.3 }),
+    chrome: std(PALETTE.CHROME, 0.22, { metalness: 0.9 }),
+    tyre: std(PALETTE.TYRE, 0.95),
+    hub: std(paint.hub, 0.45, { metalness: 0.4 }),
+    glass: new THREE.MeshStandardMaterial({
+      color: PALETTE.GLASS,
+      transparent: true,
+      opacity: 0.4,
+      roughness: 0.12,
+      metalness: 0,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    }),
+    tailLight: std(PALETTE.TAIL_LIGHT, 0.35, { emissive: PALETTE.TAIL_LIGHT, emissiveIntensity: 0.15 }),
+    indicator: std('#E0A23A', 0.35, { emissive: '#E0A23A', emissiveIntensity: 0.1 }),
+    headLight: std(PALETTE.HEAD_LIGHT, 0.3, { emissive: PALETTE.HEAD_LIGHT, emissiveIntensity: 0 }),
+    dashGlow: std(PALETTE.DASH_GLOW, 0.6, { emissive: PALETTE.DASH_GLOW, emissiveIntensity: 0 }),
+    dialFace: std('#181310', 0.6),
+    needle: std('#FF6A3D', 0.5, { emissive: '#FF6A3D', emissiveIntensity: 0 }),
+    lcd: std(PALETTE.LCD, 0.5, { emissive: PALETTE.LCD, emissiveIntensity: 0 }),
+    plate: std('#E9E4D2', 0.6),
+    rubber: std('#1B1A19', 0.95),
+    engine: std('#4A4744', 0.55, { metalness: 0.4 }),
+    engineCover: std('#6B2F2A', 0.6),
+    paper: std('#E8E2D6', 0.9),
+    cardboard: std('#B08D5C', 0.95),
+    jacket: std('#A98B3C', 0.9),
+    freshener: std('#3E8A5A', 0.9),
+    sticker: std('#E8D7B9', 0.8),
+  };
+  return {
+    ...m,
+    dispose() {
+      for (const mat of Object.values(m)) mat.dispose();
+    },
+  };
+}
 
-export function disposeMaterials(): void {
-  for (const m of Object.values(mats)) m.dispose();
+export type CarMaterials = ReturnType<typeof createMaterials>;
+export type MaterialKey = keyof Omit<CarMaterials, 'dispose'>;
+
+/**
+ * The driver's own materials. There is one driver and one outfit for every vehicle, so these
+ * live for the life of the app rather than being triplicated per vehicle.
+ */
+let occupant: { skin: THREE.MeshStandardMaterial; hair: THREE.MeshStandardMaterial; hoodie: THREE.MeshStandardMaterial; hoodieDark: THREE.MeshStandardMaterial; denim: THREE.MeshStandardMaterial; paper: THREE.MeshStandardMaterial } | null = null;
+
+export function occupantMaterials() {
+  if (!occupant) {
+    occupant = {
+      skin: std(PALETTE.SKIN, 0.85),
+      hair: std(PALETTE.HAIR, 0.9),
+      hoodie: std(PALETTE.HOODIE, 0.92),
+      hoodieDark: std('#396B44', 0.92),
+      denim: std('#3A4A63', 0.95),
+      paper: std('#E8E2D6', 0.9),
+    };
+  }
+  return occupant;
+}
+
+export type OccupantMaterials = ReturnType<typeof occupantMaterials>;
+
+/** App teardown only — never call this while a vehicle is alive. */
+export function disposeOccupantMaterials(): void {
+  if (!occupant) return;
+  for (const mat of Object.values(occupant)) mat.dispose();
+  occupant = null;
 }
 
 export interface Place {
@@ -113,6 +161,9 @@ export class Builder {
   private buckets = new Map<THREE.Material, THREE.BufferGeometry[]>();
   private dynamic: THREE.Object3D[] = [];
   private owned: THREE.BufferGeometry[] = [];
+
+  /** The vehicle's own material set; the Builder needs it to name meshes and flag shadows. */
+  constructor(private readonly mats: CarMaterials) {}
 
   add(g: THREE.BufferGeometry, mat: THREE.Material, p?: Place): void {
     if (p) placeGeometry(g, p);
@@ -174,11 +225,14 @@ export class Builder {
       const geometry = mergeGeometries(nonIndexed, false);
       for (const g of list) g.dispose();
       for (const g of nonIndexed) if (!list.includes(g)) g.dispose();
-      if (!geometry) continue;
+      // A failed merge means a body handed in a geometry with mismatched attributes. The
+      // sources are already disposed by here, so continuing would silently drop a whole
+      // material; that is a build bug, not a recoverable condition.
+      if (!geometry) throw new Error(`Builder.finish: mergeGeometries failed for material "${this.matName(mat)}" in "${name}"`);
       const mesh = new THREE.Mesh(geometry, mat);
-      mesh.castShadow = mat !== mats.glass;
+      mesh.castShadow = mat !== this.mats.glass;
       mesh.receiveShadow = true;
-      mesh.name = `${name}:${matName(mat)}`;
+      mesh.name = `${name}:${this.matName(mat)}`;
       group.add(mesh);
       merged.push(geometry);
     }
@@ -192,9 +246,9 @@ export class Builder {
       },
     };
   }
-}
 
-function matName(mat: THREE.Material): string {
-  for (const [k, v] of Object.entries(mats)) if (v === mat) return k;
-  return 'material';
+  private matName(mat: THREE.Material): string {
+    for (const [k, v] of Object.entries(this.mats)) if (v === mat) return k;
+    return 'material';
+  }
 }

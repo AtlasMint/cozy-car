@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CAR, WORLD } from '../../core/constants';
-import { mats } from './parts';
+import type { CarMaterials } from './parts';
 
 /**
  * Four wheels — chunky torus tyre and a five-spoke hub — each with its own spring offset
@@ -50,7 +50,7 @@ function nonIndexed(list: THREE.BufferGeometry[]): THREE.BufferGeometry {
   return merged;
 }
 
-export function createWheels(): WheelsRig {
+export function createWheels(m: CarMaterials): WheelsRig {
   const group = new THREE.Group();
   group.name = 'wheelSet';
   const R = CAR.WHEEL_RADIUS;
@@ -73,9 +73,9 @@ export function createWheels(): WheelsRig {
   geoms.push(tyre, hub, disc);
 
   const parts = [
-    new THREE.InstancedMesh(tyre, mats.tyre, 4),
-    new THREE.InstancedMesh(hub, mats.hub, 4),
-    new THREE.InstancedMesh(disc, mats.metalDark, 4),
+    new THREE.InstancedMesh(tyre, m.tyre, 4),
+    new THREE.InstancedMesh(hub, m.hub, 4),
+    new THREE.InstancedMesh(disc, m.metalDark, 4),
   ];
   for (const p of parts) {
     p.castShadow = true;

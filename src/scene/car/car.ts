@@ -6,12 +6,12 @@ import { createInterior, type InteriorRig } from './interior';
 import { createRadio, type RadioRig } from './radio';
 import { createWheels, type WheelsRig } from './wheels';
 import { createDressing, type DressingRig } from './dressing';
-import { Builder, disposeMaterials } from './parts';
+import { Builder, createMaterials, type CarMaterials, type PaintSpec } from './parts';
 import { createDriverFigure, type DriverFigure } from '../driver/figure';
 import { createDriverIdle, type DriverIdle } from '../driver/idle';
 import { createExhaust, type ExhaustRig } from './exhaust';
 import { createEngineRig, type EngineRig } from '../../motion/engineRig';
-import { MOTION } from '../../core/constants';
+import { MOTION, PALETTE } from '../../core/constants';
 import type { Mode } from '../../core/store';
 import { damp } from '../../util/math';
 
@@ -49,6 +49,7 @@ export interface Car {
   idle: DriverIdle;
   exhaust: ExhaustRig;
   rig: EngineRig;
+  materials: CarMaterials;
   /** Per-frame choreography. Returns the 0..1 ignition light level for the lighting rig. */
   update(inputs: CarInputs): number;
   /** Crank: body dip, exhaust cough, needle sweep. Lights ramp on their own from `engine`. */
@@ -56,15 +57,26 @@ export interface Car {
   dispose(): void;
 }
 
-export function createCar(stage: Stage): Car {
-  const b = new Builder();
-  const chassis = createChassis(b);
-  const shell = createShell(b);
-  const interior = createInterior(b);
-  const radio = createRadio(b);
-  const dressing = createDressing(b);
+/** Today's hatchback colours. Phase 2 moves this onto the vehicle spec. */
+const HATCHBACK_PAINT: PaintSpec = {
+  body: PALETTE.BODY,
+  trim: PALETTE.BODY_TRIM,
+  hub: PALETTE.HUB,
+  vinyl: PALETTE.VINYL,
+  fabric: PALETTE.FABRIC,
+  fabricDark: '#4E4138',
+};
+
+export function createCar(stage: Stage, paint: PaintSpec = HATCHBACK_PAINT): Car {
+  const materials: CarMaterials = createMaterials(paint);
+  const b = new Builder(materials);
+  const chassis = createChassis(b, materials);
+  const shell = createShell(b, materials);
+  const interior = createInterior(b, materials);
+  const radio = createRadio(b, materials);
+  const dressing = createDressing(b, materials);
   const built = b.finish('car');
-  const wheels = createWheels();
+  const wheels = createWheels(materials);
   const driverRoot = new THREE.Group();
   driverRoot.name = 'driverRoot';
 
@@ -148,13 +160,14 @@ export function createCar(stage: Stage): Car {
     idle,
     exhaust,
     rig,
+    materials,
     dispose() {
       exhaust.dispose();
       driver.dispose();
       built.dispose();
       radio.dispose();
       wheels.dispose();
-      disposeMaterials();
+      materials.dispose();
     },
   };
 }

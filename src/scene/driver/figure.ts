@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CAR } from '../../core/constants';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { mats } from '../car/parts';
+import { occupantMaterials } from '../car/parts';
 
 /**
  * The driver: chunky, low-poly, built from capsules and spheres, seated in the right-hand
@@ -57,6 +57,7 @@ function aim(node: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3): void
 }
 
 export function createDriverFigure(wheelNode: THREE.Object3D, parent: THREE.Object3D): DriverFigure {
+  const m = occupantMaterials();
   const geoms: THREE.BufferGeometry[] = [];
   const g = <T extends THREE.BufferGeometry>(geom: T): T => {
     geoms.push(geom);
@@ -97,7 +98,7 @@ export function createDriverFigure(wheelNode: THREE.Object3D, parent: THREE.Obje
   hips.name = 'hips';
   hips.position.set(0.16, 0.6, CAR.DRIVER_Z);
   root.add(hips);
-  hips.add(mesh(g(new THREE.SphereGeometry(0.15, 12, 8)).scale(1.1, 0.7, 1.25), mats.denim));
+  hips.add(mesh(g(new THREE.SphereGeometry(0.15, 12, 8)).scale(1.1, 0.7, 1.25), m.denim));
 
   const torso = new THREE.Group();
   torso.name = 'torso';
@@ -105,17 +106,17 @@ export function createDriverFigure(wheelNode: THREE.Object3D, parent: THREE.Obje
   hips.add(torso);
   // Torso capsule and shoulder caps fused into one hoodie mesh; the hood bunched at the
   // back of the neck and the drawstrings ride along as their own small meshes.
-  fuse(torso, mats.hoodie, [
+  fuse(torso, m.hoodie, [
     { geom: new THREE.CapsuleGeometry(0.15, 0.14, 4, 12), p: { y: 0.22, sz: 1.2 } },
     { geom: new THREE.SphereGeometry(0.065, 10, 8), p: { x: 0.02, y: 0.36, z: -0.19 } },
     { geom: new THREE.SphereGeometry(0.065, 10, 8), p: { x: 0.02, y: 0.36, z: 0.19 } },
   ]);
-  const hood = mesh(g(new THREE.TorusGeometry(0.1, 0.048, 8, 18)), mats.hoodieDark);
+  const hood = mesh(g(new THREE.TorusGeometry(0.1, 0.048, 8, 18)), m.hoodieDark);
   hood.rotation.x = Math.PI / 2;
   hood.position.set(-0.05, 0.4, 0);
   hood.scale.set(1, 1.15, 1);
   torso.add(hood);
-  fuse(torso, mats.paper, [
+  fuse(torso, m.paper, [
     { geom: new THREE.CylinderGeometry(0.004, 0.004, 0.12, 5), p: { x: 0.14, y: 0.3, z: -0.035 } },
     { geom: new THREE.CylinderGeometry(0.004, 0.004, 0.12, 5), p: { x: 0.14, y: 0.3, z: 0.035 } },
   ]);
@@ -124,18 +125,18 @@ export function createDriverFigure(wheelNode: THREE.Object3D, parent: THREE.Obje
   neck.name = 'neck';
   neck.position.set(0.0, 0.44, 0);
   torso.add(neck);
-  neck.add(mesh(g(new THREE.CylinderGeometry(0.045, 0.05, 0.08, 10)), mats.skin));
+  neck.add(mesh(g(new THREE.CylinderGeometry(0.045, 0.05, 0.08, 10)), m.skin));
 
   const head = new THREE.Group();
   head.name = 'head';
   head.position.set(0.0, 0.16, 0);
   neck.add(head);
-  fuse(head, mats.skin, [
+  fuse(head, m.skin, [
     { geom: new THREE.SphereGeometry(0.14, 16, 12) },
     { geom: new THREE.SphereGeometry(0.03, 8, 6), p: { x: -0.01, y: -0.01, z: -0.14 } },
     { geom: new THREE.SphereGeometry(0.03, 8, 6), p: { x: -0.01, y: -0.01, z: 0.14 } },
   ]);
-  fuse(head, mats.hair, [
+  fuse(head, m.hair, [
     { geom: new THREE.SphereGeometry(0.146, 16, 12), p: { x: -0.025, y: 0.03, sy: 0.92 } },
     { geom: new THREE.SphereGeometry(0.1, 12, 8), p: { x: 0.06, y: 0.09, sx: 0.9, sy: 0.5, sz: 1.1 } },
     { geom: new THREE.SphereGeometry(0.014, 8, 6), p: { x: 0.128, z: -0.055 } },
@@ -173,10 +174,10 @@ export function createDriverFigure(wheelNode: THREE.Object3D, parent: THREE.Obje
   const jointGeom = g(new THREE.SphereGeometry(0.052, 10, 8));
   const handGeom = g(new THREE.SphereGeometry(0.048, 10, 8));
   const arms = [shoulderL, shoulderR].map((shoulder, i) => {
-    const upper = mesh(upperGeom, mats.hoodie);
-    const fore = mesh(foreGeom, mats.hoodie);
-    const elbow = mesh(jointGeom, mats.hoodie);
-    const hand = mesh(handGeom, mats.skin);
+    const upper = mesh(upperGeom, m.hoodie);
+    const fore = mesh(foreGeom, m.hoodie);
+    const elbow = mesh(jointGeom, m.hoodie);
+    const hand = mesh(handGeom, m.skin);
     hand.scale.set(1, 0.8, 1.1);
     root.add(upper, fore, elbow, hand);
     return { shoulder, upper, fore, elbow, hand, outward: i === 0 ? -1 : 1 };
@@ -199,7 +200,7 @@ export function createDriverFigure(wheelNode: THREE.Object3D, parent: THREE.Obje
     legParts.push({ geom: new THREE.SphereGeometry(0.072, 10, 8), p: { x: 0.52, y: 0.64, z } });
     placed(new THREE.CylinderGeometry(0.06, 0.055, 1, 10), new THREE.Vector3(0.52, 0.64, z), new THREE.Vector3(0.7, 0.42, z));
   }
-  fuse(root, mats.denim, legParts);
+  fuse(root, m.denim, legParts);
 
   const figure: DriverFigure = {
     root,

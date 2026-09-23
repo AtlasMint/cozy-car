@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CAR } from '../../core/constants';
-import { Builder, mats, paneGeometry } from './parts';
+import { Builder, paneGeometry } from './parts';
+import type { CarMaterials } from './parts';
 
 /**
  * Body shell: both side walls (doors, pillars, window frames), bonnet, front and rear panels,
@@ -68,11 +69,11 @@ function pathShape(points: [number, number][]): THREE.Shape {
   return s;
 }
 
-export function createShell(b: Builder): ShellRig {
+export function createShell(b: Builder, m: CarMaterials): ShellRig {
   const panes: GlassPane[] = [];
 
   const addPane = (name: string, geometry: THREE.BufferGeometry) => {
-    const mesh = new THREE.Mesh(geometry, mats.glass);
+    const mesh = new THREE.Mesh(geometry, m.glass);
     mesh.name = `glass:${name}`;
     mesh.receiveShadow = false;
     mesh.castShadow = false;
@@ -86,7 +87,7 @@ export function createShell(b: Builder): ShellRig {
     // Side wall: the whole silhouette with window holes and wheel arches, 5 cm thick.
     const wall = new THREE.ExtrudeGeometry(sideProfile(), { depth: T, bevelEnabled: false, curveSegments: 6 });
     wall.translate(0, 0, sign > 0 ? W : -W - T);
-    b.add(wall, mats.body);
+    b.add(wall, m.body);
     // Side glass sits mid-wall.
     const zGlass = sign * (W + T / 2);
     const front = new THREE.ShapeGeometry(pathShape(FRONT_WINDOW));
@@ -96,45 +97,45 @@ export function createShell(b: Builder): ShellRig {
     rear.translate(0, 0, zGlass);
     addPane(`sideRear${side}`, rear);
     // Door mirror.
-    b.box(0.09, 0.06, 0.13, mats.body, { x: 0.5, y: 1.04, z: sign * (W + T + 0.065) });
-    b.box(0.005, 0.045, 0.1, mats.chrome, { x: 0.453, y: 1.04, z: sign * (W + T + 0.065) });
+    b.box(0.09, 0.06, 0.13, m.body, { x: 0.5, y: 1.04, z: sign * (W + T + 0.065) });
+    b.box(0.005, 0.045, 0.1, m.chrome, { x: 0.453, y: 1.04, z: sign * (W + T + 0.065) });
     // Door card on the inner face: fabric insert, armrest, inner handle.
-    b.box(1.83, 0.5, 0.05, mats.vinyl, { x: -0.365, y: 0.71, z: sign * (W - 0.025) });
-    b.box(1.6, 0.28, 0.012, mats.fabric, { x: -0.35, y: 0.7, z: sign * (W - 0.056) });
-    b.box(0.55, 0.05, 0.1, mats.vinylLight, { x: 0.07, y: 0.72, z: sign * (W - 0.1) });
-    b.box(0.1, 0.02, 0.03, mats.chrome, { x: 0.3, y: 0.83, z: sign * (W - 0.065) });
+    b.box(1.83, 0.5, 0.05, m.vinyl, { x: -0.365, y: 0.71, z: sign * (W - 0.025) });
+    b.box(1.6, 0.28, 0.012, m.fabric, { x: -0.35, y: 0.7, z: sign * (W - 0.056) });
+    b.box(0.55, 0.05, 0.1, m.vinylLight, { x: 0.07, y: 0.72, z: sign * (W - 0.1) });
+    b.box(0.1, 0.02, 0.03, m.chrome, { x: 0.3, y: 0.83, z: sign * (W - 0.065) });
     // Tail-light cluster and indicator on each rear corner; headlight on each front corner.
-    b.box(0.045, 0.28, 0.26, mats.tailLight, { x: -1.8825, y: 0.76, z: sign * (W + T - 0.13) });
-    b.box(0.045, 0.07, 0.26, mats.indicator, { x: -1.8825, y: 0.58, z: sign * (W + T - 0.13) });
-    b.cylX(0.075, 0.02, mats.headLight, { x: 1.915, y: 0.72, z: sign * 0.56 });
+    b.box(0.045, 0.28, 0.26, m.tailLight, { x: -1.8825, y: 0.76, z: sign * (W + T - 0.13) });
+    b.box(0.045, 0.07, 0.26, m.indicator, { x: -1.8825, y: 0.58, z: sign * (W + T - 0.13) });
+    b.cylX(0.075, 0.02, m.headLight, { x: 1.915, y: 0.72, z: sign * 0.56 });
   }
 
   // Header rails where a roof would meet the glass: the windshield header and the hatch hinge.
-  b.box(0.16, 0.055, CAR.WIDTH, mats.body, { x: 0.1, y: 1.3875 });
-  b.box(0.1, 0.05, CAR.WIDTH, mats.body, { x: -1.25, y: 1.39 });
+  b.box(0.16, 0.055, CAR.WIDTH, m.body, { x: 0.1, y: 1.3875 });
+  b.box(0.1, 0.05, CAR.WIDTH, m.body, { x: -1.25, y: 1.39 });
 
   // Bonnet — slightly raised over the engine — front panel and grille.
-  b.spanBox(1.197, 0.03, -W - T, W + T, mats.body, { x: 1.255, y: 0.925, rz: -0.1088 });
-  b.spanBox(0.06, 0.34, -W - T, W + T, mats.body, { x: 1.88, y: 0.69 });
-  b.box(0.012, 0.16, 0.5, mats.trim, { x: 1.915, y: 0.68 });
+  b.spanBox(1.197, 0.03, -W - T, W + T, m.body, { x: 1.255, y: 0.925, rz: -0.1088 });
+  b.spanBox(0.06, 0.34, -W - T, W + T, m.body, { x: 1.88, y: 0.69 });
+  b.box(0.012, 0.16, 0.5, m.trim, { x: 1.915, y: 0.68 });
 
   // Windshield and hatch glass, wall to wall.
   addPane('windshield', paneGeometry(0.62, 1.0, 0.17, 1.355, -W + 0.005, W - 0.005));
   addPane('rear', paneGeometry(-1.29, 1.375, -1.8, 0.98, -W + 0.005, W - 0.005));
 
   // Tailgate below the glass, tilted with the hatch line; number plate, badge, rear wiper.
-  b.spanBox(0.04, 0.485, -W - T, W + T, mats.body, { x: -1.83, y: 0.74, rz: -0.124 });
-  b.box(0.01, 0.14, 0.46, mats.trim, { x: -1.87, y: 0.63 });
-  b.box(0.015, 0.12, 0.44, mats.plate, { x: -1.875, y: 0.63 });
-  b.cylX(0.03, 0.012, mats.chrome, { x: -1.875, y: 0.88, z: 0.25 });
-  b.box(0.01, 0.012, 0.3, mats.trim, { x: -1.76, y: 1.02, z: 0.45 });
+  b.spanBox(0.04, 0.485, -W - T, W + T, m.body, { x: -1.83, y: 0.74, rz: -0.124 });
+  b.box(0.01, 0.14, 0.46, m.trim, { x: -1.87, y: 0.63 });
+  b.box(0.015, 0.12, 0.44, m.plate, { x: -1.875, y: 0.63 });
+  b.cylX(0.03, 0.012, m.chrome, { x: -1.875, y: 0.88, z: 0.25 });
+  b.box(0.01, 0.012, 0.3, m.trim, { x: -1.76, y: 1.02, z: 0.45 });
 
   return {
     panes,
     setLights(head, tail) {
-      mats.headLight.emissiveIntensity = head * 3.5;
-      mats.tailLight.emissiveIntensity = 0.15 + tail * 1.1;
-      mats.indicator.emissiveIntensity = 0.1 + tail * 0.6;
+      m.headLight.emissiveIntensity = head * 3.5;
+      m.tailLight.emissiveIntensity = 0.15 + tail * 1.1;
+      m.indicator.emissiveIntensity = 0.1 + tail * 0.6;
     },
   };
 }

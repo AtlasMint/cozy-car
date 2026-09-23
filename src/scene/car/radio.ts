@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CAR, PALETTE } from '../../core/constants';
-import { Builder, mats } from './parts';
+import { Builder } from './parts';
+import type { CarMaterials } from './parts';
 
 /**
  * Head unit in the centre console: faceplate, amber LCD on its own canvas texture, two knobs,
@@ -21,16 +22,16 @@ export interface RadioRig {
 const LCD_W = 256;
 const LCD_H = 64;
 
-export function createRadio(b: Builder): RadioRig {
+export function createRadio(b: Builder, m: CarMaterials): RadioRig {
   const [fx, fy, fz] = CAR.RADIO_FACE;
 
-  b.box(0.016, 0.12, 0.3, mats.trim, { x: fx, y: fy, z: fz });
-  b.cylX(0.014, 0.014, mats.hub, { x: fx - 0.012, y: fy, z: fz - 0.125 });
-  b.cylX(0.014, 0.014, mats.hub, { x: fx - 0.012, y: fy, z: fz + 0.125 });
+  b.box(0.016, 0.12, 0.3, m.trim, { x: fx, y: fy, z: fz });
+  b.cylX(0.014, 0.014, m.hub, { x: fx - 0.012, y: fy, z: fz - 0.125 });
+  b.cylX(0.014, 0.014, m.hub, { x: fx - 0.012, y: fy, z: fz + 0.125 });
   for (let i = 0; i < 6; i++) {
-    b.box(0.006, 0.014, 0.022, mats.rubber, { x: fx - 0.01, y: fy - 0.04, z: fz - 0.07 + i * 0.028 });
+    b.box(0.006, 0.014, 0.022, m.rubber, { x: fx - 0.01, y: fy - 0.04, z: fz - 0.07 + i * 0.028 });
   }
-  b.box(0.004, 0.004, 0.16, mats.hub, { x: fx - 0.009, y: fy - 0.015, z: fz + 0.0 });
+  b.box(0.004, 0.004, 0.16, m.hub, { x: fx - 0.009, y: fy - 0.015, z: fz + 0.0 });
 
   // LCD: canvas texture used as both colour and emissive map so it glows at night.
   const canvas = document.createElement('canvas');
