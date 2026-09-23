@@ -58,18 +58,21 @@ export function createWheels(m: CarMaterials, v: VehicleSpec): WheelsRig {
   const geoms: THREE.BufferGeometry[] = [];
 
   const tyre = new THREE.TorusGeometry(R - 0.09, 0.09, 12, 32);
-  const hubParts: THREE.BufferGeometry[] = [new THREE.TorusGeometry(0.15, 0.014, 8, 32)];
-  const cap = new THREE.CylinderGeometry(0.045, 0.045, v.dims.wheelWidth - 0.02, 16);
+  const hubParts: THREE.BufferGeometry[] = [new THREE.TorusGeometry(v.dims.wheelRadius * 0.52, 0.014, 8, 32)];
+  const cap = new THREE.CylinderGeometry(v.dims.wheelRadius * (v.dims.spokes ? 0.155 : 0.42), v.dims.wheelRadius * (v.dims.spokes ? 0.155 : 0.42), v.dims.wheelWidth - 0.02, 16);
   cap.rotateX(Math.PI / 2);
   hubParts.push(cap);
-  for (let i = 0; i < 5; i++) {
-    const spoke = new THREE.BoxGeometry(0.03, 0.13, v.dims.wheelWidth - 0.04);
-    spoke.translate(0, 0.085, 0);
-    spoke.rotateZ((i / 5) * Math.PI * 2);
+  // A plain steel disc (spokes = 0) has no periodic signal, so it cannot alias at speed — the
+  // right wheel for a van, and the reason the other two get an odd spoke count.
+  const R2 = v.dims.wheelRadius;
+  for (let i = 0; i < v.dims.spokes; i++) {
+    const spoke = new THREE.BoxGeometry(0.03, R2 * 0.45, v.dims.wheelWidth - 0.04);
+    spoke.translate(0, R2 * 0.29, 0);
+    spoke.rotateZ((i / v.dims.spokes) * Math.PI * 2);
     hubParts.push(spoke);
   }
   const hub = nonIndexed(hubParts);
-  const disc = new THREE.CylinderGeometry(0.165, 0.165, v.dims.wheelWidth - 0.06, 24);
+  const disc = new THREE.CylinderGeometry(v.dims.wheelRadius * 0.57, v.dims.wheelRadius * 0.57, v.dims.wheelWidth - 0.06, 24);
   disc.rotateX(Math.PI / 2);
   geoms.push(tyre, hub, disc);
 
@@ -99,7 +102,7 @@ export function createWheels(m: CarMaterials, v: VehicleSpec): WheelsRig {
       group.add(root);
       wheels.push({ root, spinner, x, z, isFront, isNear, springOffset: 0 });
 
-      const sg = new THREE.PlaneGeometry(0.8, 0.5);
+      const sg = new THREE.PlaneGeometry(v.dims.contactShadow[0], v.dims.contactShadow[1]);
       sg.rotateX(-Math.PI / 2);
       sg.translate(x, WORLD.ROAD_Y + 0.008, z);
       shadowGeoms.push(sg);
@@ -120,8 +123,10 @@ export function createWheels(m: CarMaterials, v: VehicleSpec): WheelsRig {
       w.root.position.y = R + w.springOffset;
       w.root.updateMatrix();
       w.spinner.updateMatrix();
-      const m = w.root.matrix.clone().multiply(w.spinner.matrix);
-      for (const p of parts) p.setMatrixAt(i, m);
+      const mtx = w.root.matrix.clone().multiply(w.spinner.matrix);
+      // Rear tyres are scaled on Z: a twin-wheel look on the van, a staggered one on the sports car.
+      if (!w.isFront && v.dims.rearWidthScale !== 1) mtx.scale(new THREE.Vector3(1, 1, v.dims.rearWidthScale));
+      for (const p of parts) p.setMatrixAt(i, mtx);
     }
     for (const p of parts) p.instanceMatrix.needsUpdate = true;
   };

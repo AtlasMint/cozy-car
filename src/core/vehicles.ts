@@ -13,6 +13,7 @@
 import type { VehicleId } from './store';
 import { buildHatchback } from '../scene/car/bodies/hatchback';
 import { buildSports } from '../scene/car/bodies/sports';
+import { buildVan } from '../scene/car/bodies/van';
 import { AUDIO, CAMERA, CAR, INTERACTION, MOTION, PALETTE, SPEED, WEATHER_FX } from './constants';
 import { DEG } from '../util/math';
 import type { Builder, CarMaterials, PaintSpec } from '../scene/car/parts';
@@ -418,10 +419,132 @@ export const SPORTS: VehicleSpec = {
   build: buildSports,
 };
 
+
+/**
+ * The camper van. Its wall top is derived for interior-exposure parity with the hatchback —
+ * see the note in bodies/van.ts — which is what makes it a high-top van rather than a
+ * coachbuilt box, and why it needs no shear to be readable from this camera.
+ */
+export const VAN: VehicleSpec = {
+  id: 'van',
+  label: 'Camper',
+  paint: {
+    // Pale dusty blue, period-correct for a 1970s camper and 153 degrees from the slab's hue.
+    // Cream was tested and rejected: a warm neutral body flanked by white road markings cannot
+    // separate from a warm neutral plinth at any lightness.
+    body: '#A9BFC4',
+    trim: '#3A3C38',
+    hub: '#B9B4A8',
+    vinyl: '#2F2A24',
+    fabric: '#6E7F63',
+    fabricDark: '#55634C',
+  },
+  dims: {
+    length: 5.6,
+    width: 2.1,
+    wallZ: 1.0,
+    wallThickness: 0.05,
+    floorY: 0.5,
+    floorTopY: 0.56,
+    sillY: 0.62,
+    beltY: 1.4,
+    wallTopY: 1.95,
+    wheelbase: 3.2,
+    track: 1.62,
+    wheelRadius: 0.36,
+    wheelWidth: 0.22,
+    rearWidthScale: 1.25,
+    archRadius: 0.46,
+    spokes: 0,
+    contactShadow: [1.0, 0.62],
+  },
+  cabin: {
+    driverZ: 0.42,
+    passengerZ: -0.42,
+    seatWidth: 0.56,
+    // A van wheel sits high and flat, but 1.52 raised the arms to shoulder height from this
+    // camera; 1.44 keeps the same hand-above-shoulder rise as the hatchback.
+    wheelCentre: [1.8, 1.44, 0.42],
+    wheelNormal: [-0.7071, 0.7071, 0],
+    steeringRadius: 0.19,
+  },
+  anchors: {
+    radioFace: [1.33, 1.33, 0.7],
+    radioHitbox: [0.18, 0.24, 0.46],
+    radioFocusOffset: [0.03, 0.02, -0.06],
+    exhaustTip: [-2.6, 0.42, -0.72],
+    swingPivot: [1.66, 1.8, -0.22],
+    swingLength: 0.26,
+    headlight: { x: 2.78, y: 0.86, z: 0.74 },
+    coneLength: 5.2,
+    coneRadius: 0.85,
+    pool: { w: 8.6, d: 4.4, x: 6.8 },
+    cabinLight: [1.55, 1.55, 0.1],
+    cabinDistance: 2.8,
+    livingLight: [-1.2, 1.78, 0.1],
+    livingDistance: 4.5,
+    dashLight: [1.95, 1.34, 0.1],
+    dashDistance: 1.8,
+    shadowOrtho: 5.4,
+    shadowRadius: 2,
+    shadowNormalBias: 0.03,
+  },
+  // Verified by screenshot: 7.0 cropped the nose and the rail. 8.0 restores the hatchback's
+  // top margin and bottom void, and radioZoom scales with it so the push-in frames the same height.
+  camera: { viewSize: 8.0, minViewWidth: 8.6, target: [-0.3, 1.05, -0.9], radioZoom: 4.92 },
+  shelter: { min: [-2.86, 0, -1.07], max: [2.86, 2.0, 1.07] },
+  motion: {
+    // A tall heavy body wallows slowly on soft springs, and shakes lower and harder.
+    idleHz: 8,
+    idle: { chill: { y: 0.011, roll: 0.4 * DEG }, focus: { y: 0.008, roll: 0.28 * DEG } },
+    sway: { hz: 0.34, chill: { y: 0.012, pitch: 0.32 * DEG }, focus: { y: 0.03, pitch: 1.1 * DEG } },
+    road: { hz: 2.3, y: 0.038, roll: 0.85 * DEG, fullAt: 13 },
+    bump: { impulse: 0.078, rearDelay: 3.2 / 19, omega: 11 },
+    bodySpringOmega: 5.5,
+    ignitionKick: -0.85,
+    wheelToBody: 0.48,
+    // A 3.2 m wheelbase geometrically produces less pitch per metre than a 2.4 m one.
+    wheelToPitch: 0.3,
+    rpm: { idle: 620, idleJitter: 55, cruise: 1850, wander: 180, sweepMs: 1600, sweepPeak: 4200 },
+    exhaust: { chillRate: 1.4, focusRate: 2.6, life: 2.2, rise: 0.16, drift: 0.6, size: 0.2, grow: 0.45 },
+  },
+  audio: {
+    cylinders: 4,
+    rolloff: { idle: 0.52, loaded: 0.34 },
+    cylinderSpread: 0.12,
+    asymmetryDeg: 7,
+    irregularity: { idle: 0.2, loaded: 0.06 },
+    modes: [20, 61, 102],
+    dronePeak: { freq: 64, q: 5, gainDb: 7 },
+    dampingHz: 1500,
+    knock: { gain: 0.18, freq: 3200, q: 1.1 },
+    tick: { gain: 0.06, freq: 3600 },
+    intake: { idle: 0.06, loaded: 0.26, freq: 520 },
+    crank: { from: 18, to: 44, ms: 1150 },
+    gain: { engine: 1.22, road: 1.14, wind: 1.1 },
+    focusRate: 1.18,
+  },
+  pose: {
+    hips: [1.55, 1.14, 0.42],
+    torsoLean: 0.06,
+    legSplay: 0.11,
+    knee: [1.95, 1.14],
+    foot: [2.2, 0.78],
+    gripAngles: [125, 55],
+    headTurnYaw: -0.7,
+    slumpScale: 0.8,
+    cup: [1.38, 1.06, -0.14],
+    // No gear lever within reach of this seat, so that gesture drops from the pool.
+    gearKnob: null,
+  },
+  gauges: { rpmFull: 4500, kmhFull: 140 },
+  speed: { focus: 19 },
+  build: buildVan,
+};
+
 export const VEHICLES: Record<VehicleId, VehicleSpec> = {
   hatchback: HATCHBACK,
-  // the van lands in its own phase
-  van: HATCHBACK,
+  van: VAN,
   sports: SPORTS,
 };
 
