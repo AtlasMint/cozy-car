@@ -1,5 +1,6 @@
 import { AUDIO, MOTION, SPEED } from '../core/constants';
 import { HATCHBACK, type EngineProfile } from '../core/vehicles';
+import { createEngineVoice, type EngineVoice } from './engineVoice';
 import { damp } from '../util/math';
 import type { Mixer } from './mixer';
 
@@ -34,7 +35,7 @@ export interface Layers {
 interface Layer {
   gain: GainNode;
   source: AudioBufferSourceNode | null;
-  synth: { nodes: AudioNode[]; setRate?: (r: number) => void } | null;
+  synth: { nodes: AudioNode[]; setRate?: (r: number) => void; setEngine?: (rpm: number, load: number) => void; dispose?: () => void } | null;
   level: number;
 }
 
@@ -74,6 +75,7 @@ function loopNoise(ctx: AudioContext, brown: boolean): AudioBufferSourceNode {
 
 export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCHBACK.audio): Layers {
   let profile = initialProfile;
+  let engineVoice: EngineVoice | null = null;
   const layers = new Map<LayerName, Layer>();
   let started = false;
   let rate = 1;
@@ -107,7 +109,7 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
     } catch (err) {
       if (!warnedOnce) {
         warnedOnce = true;
-        console.info('[audio] some loops are missing under /audio — using synthesized stand-ins. See public/audio/README.md.', err);
+        console.info('[audio] no loops under /audio — running the synthesized layers, which is the shipped default. Drop files there to replace them. See public/audio/README.md.', err);
       }
       layer.synth = synthFor(ctx, name, layer.gain);
     }
@@ -117,39 +119,14 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
     const nodes: AudioNode[] = [];
     switch (name) {
       case 'engine': {
-        // Two detuned saws and a sub, through a lowpass; the fundamental follows rpm.
-        const oscA = ctx.createOscillator();
-        const oscB = ctx.createOscillator();
-        const sub = ctx.createOscillator();
-        oscA.type = 'sawtooth';
-        oscB.type = 'sawtooth';
-        sub.type = 'sine';
-        const lp = ctx.createBiquadFilter();
-        lp.type = 'lowpass';
-        lp.frequency.value = 220;
-        lp.Q.value = 0.8;
-        const mix = ctx.createGain();
-        mix.gain.value = 0.35;
-        const subGain = ctx.createGain();
-        subGain.gain.value = 0.5;
-        oscA.connect(lp);
-        oscB.connect(lp);
-        sub.connect(subGain).connect(lp);
-        lp.connect(mix).connect(out);
-        oscA.start();
-        oscB.start();
-        sub.start();
-        nodes.push(oscA, oscB, sub, lp, mix, subGain);
+        // The engine is a pulse train through fixed resonators; see audio/engineVoice.ts.
+        const voice = createEngineVoice(ctx, profile);
+        voice.output.connect(out);
+        engineVoice = voice;
         return {
           nodes,
-          setRate: (r) => {
-            // idle rpm, 4-cylinder → firing frequency ≈ 25 Hz
-            const f = 25 * r;
-            oscA.frequency.setTargetAtTime(f, ctx.currentTime, 0.08);
-            oscB.frequency.setTargetAtTime(f * 1.007, ctx.currentTime, 0.08);
-            sub.frequency.setTargetAtTime(f * 0.5, ctx.currentTime, 0.08);
-            lp.frequency.setTargetAtTime(180 + 160 * (r - 1) * 3, ctx.currentTime, 0.1);
-          },
+          setEngine: (rpm, load) => voice.set(rpm, load),
+          dispose: () => voice.dispose(),
         };
       }
       case 'roadNoise': {
@@ -228,6 +205,16 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
   return {
     setEngineProfile(p) {
       profile = p;
+      // The voice bakes its wave tables and resonators per vehicle, so it is rebuilt rather
+      // than retuned. The layer's gain node survives, so the level ramp is unbroken.
+      const layer = layers.get('engine');
+      if (layer && engineVoice) {
+        engineVoice.dispose();
+        const voice = createEngineVoice(mixer.context!, p);
+        voice.output.connect(layer.gain);
+        engineVoice = voice;
+        layer.synth = { nodes: [], setEngine: (rpm, load) => voice.set(rpm, load), dispose: () => voice.dispose() };
+      }
     },
     update(dt, d) {
       if (!started) start();
@@ -245,7 +232,9 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
       rate = damp(rate, targetRate, 1.6, dt);
       const engine = layers.get('engine');
       if (engine?.source) engine.source.playbackRate.setTargetAtTime(rate, ctx.currentTime, 0.1);
-      engine?.synth?.setRate?.(Math.max(0.2, d.rpm / MOTION.RPM.idle));
+      // rpm drives the pulse rate directly and `blend` is the load, so Chill and Focus now
+      // differ in timbre rather than only in pitch.
+      engine?.synth?.setEngine?.(d.rpm, d.blend);
     },
     thunder(strength) {
       const ctx = mixer.context;
@@ -303,6 +292,7 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
       for (const l of layers.values()) {
         l.source?.stop();
         l.source?.disconnect();
+        l.synth?.dispose?.();
         for (const n of l.synth?.nodes ?? []) {
           try {
             (n as OscillatorNode).stop?.();
