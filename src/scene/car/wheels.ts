@@ -1,6 +1,7 @@
 import * as THREE from 'three';
+import type { VehicleSpec } from '../../core/vehicles';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { CAR, WORLD } from '../../core/constants';
+import { WORLD } from '../../core/constants';
 import type { CarMaterials } from './parts';
 
 /**
@@ -50,25 +51,25 @@ function nonIndexed(list: THREE.BufferGeometry[]): THREE.BufferGeometry {
   return merged;
 }
 
-export function createWheels(m: CarMaterials): WheelsRig {
+export function createWheels(m: CarMaterials, v: VehicleSpec): WheelsRig {
   const group = new THREE.Group();
   group.name = 'wheelSet';
-  const R = CAR.WHEEL_RADIUS;
+  const R = v.dims.wheelRadius;
   const geoms: THREE.BufferGeometry[] = [];
 
   const tyre = new THREE.TorusGeometry(R - 0.09, 0.09, 12, 32);
   const hubParts: THREE.BufferGeometry[] = [new THREE.TorusGeometry(0.15, 0.014, 8, 32)];
-  const cap = new THREE.CylinderGeometry(0.045, 0.045, CAR.WHEEL_WIDTH - 0.02, 16);
+  const cap = new THREE.CylinderGeometry(0.045, 0.045, v.dims.wheelWidth - 0.02, 16);
   cap.rotateX(Math.PI / 2);
   hubParts.push(cap);
   for (let i = 0; i < 5; i++) {
-    const spoke = new THREE.BoxGeometry(0.03, 0.13, CAR.WHEEL_WIDTH - 0.04);
+    const spoke = new THREE.BoxGeometry(0.03, 0.13, v.dims.wheelWidth - 0.04);
     spoke.translate(0, 0.085, 0);
     spoke.rotateZ((i / 5) * Math.PI * 2);
     hubParts.push(spoke);
   }
   const hub = nonIndexed(hubParts);
-  const disc = new THREE.CylinderGeometry(0.165, 0.165, CAR.WHEEL_WIDTH - 0.06, 24);
+  const disc = new THREE.CylinderGeometry(0.165, 0.165, v.dims.wheelWidth - 0.06, 24);
   disc.rotateX(Math.PI / 2);
   geoms.push(tyre, hub, disc);
 
@@ -88,8 +89,8 @@ export function createWheels(m: CarMaterials): WheelsRig {
   const shadowGeoms: THREE.BufferGeometry[] = [];
   for (const isFront of [true, false]) {
     for (const isNear of [true, false]) {
-      const x = (isFront ? 1 : -1) * (CAR.WHEELBASE / 2);
-      const z = (isNear ? -1 : 1) * (CAR.TRACK / 2);
+      const x = (isFront ? 1 : -1) * (v.dims.wheelbase / 2);
+      const z = (isNear ? -1 : 1) * (v.dims.track / 2);
       const root = new THREE.Group();
       root.name = `wheel:${isFront ? 'front' : 'rear'}${isNear ? 'Near' : 'Far'}`;
       root.position.set(x, R, z);

@@ -2,6 +2,11 @@ import { describe, expect, test } from 'bun:test';
 import { createEngineRig } from '../../motion/engineRig';
 import { mulberry32 } from '../math';
 import { MOTION } from '../../core/constants';
+import { HATCHBACK } from '../../core/vehicles';
+
+// The hatchback profile is a verbatim copy of the old global MOTION block, so every numeric
+// assertion below is unchanged — that is the regression proof for the spec extraction.
+const P = HATCHBACK.motion;
 
 const run = (rig: ReturnType<typeof createEngineRig>, seconds: number, opts: Partial<Parameters<typeof rig.update>[0]> = {}) => {
   const dt = 1 / 60;
@@ -21,24 +26,24 @@ const run = (rig: ReturnType<typeof createEngineRig>, seconds: number, opts: Par
 
 describe('engine rig', () => {
   test('engine off is perfectly still', () => {
-    const rig = createEngineRig(mulberry32(1));
+    const rig = createEngineRig(P, mulberry32(1));
     const r = run(rig, 3, { engine: 0, bumpsEnabled: false });
     expect(r.maxY).toBe(0);
     expect(r.maxPitch).toBe(0);
   });
 
   test('chill idle stays within the summed band amplitudes', () => {
-    const rig = createEngineRig(mulberry32(2));
+    const rig = createEngineRig(P, mulberry32(2));
     const r = run(rig, 10, { blend: 0, speed: 0 });
-    const bound = MOTION.IDLE.chill.y * 1.5 + MOTION.SWAY.chill.y;
+    const bound = P.idle.chill.y * 1.5 + P.sway.chill.y;
     expect(r.maxY).toBeGreaterThan(0.002);
     expect(r.maxY).toBeLessThanOrEqual(bound + 1e-6);
     expect(r.maxWheel).toBe(0); // no bumps while parked
   });
 
   test('focus at speed moves more than chill, and bumps reach the wheels', () => {
-    const chill = run(createEngineRig(mulberry32(3)), 20, { blend: 0, speed: 0 });
-    const focus = run(createEngineRig(mulberry32(3)), 20, { blend: 1, speed: 22 });
+    const chill = run(createEngineRig(P, mulberry32(3)), 20, { blend: 0, speed: 0 });
+    const focus = run(createEngineRig(P, mulberry32(3)), 20, { blend: 1, speed: 22 });
     expect(focus.maxY).toBeGreaterThan(chill.maxY);
     expect(focus.maxPitch).toBeGreaterThan(chill.maxPitch);
     expect(focus.maxWheel).toBeGreaterThan(0.01);
@@ -46,7 +51,7 @@ describe('engine rig', () => {
   });
 
   test('a bump hits the front wheels first and the rear later', () => {
-    const rig = createEngineRig(mulberry32(4));
+    const rig = createEngineRig(P, mulberry32(4));
     const dt = 1 / 120;
     rig.update({ dt, elapsed: 0, blend: 0, engine: 1, speed: 0, ampScale: 1, bumpsEnabled: false });
     rig.bump();
@@ -69,11 +74,11 @@ describe('engine rig', () => {
     }
     expect(frontPeak).toBeGreaterThan(0.01);
     expect(rearPeak).toBeGreaterThan(0.01);
-    expect(rearPeakT - frontPeakT).toBeGreaterThan(MOTION.BUMP.rearDelay * 0.8);
+    expect(rearPeakT - frontPeakT).toBeGreaterThan(P.bump.rearDelay * 0.8);
   });
 
   test('ignition dips the body then settles', () => {
-    const rig = createEngineRig(mulberry32(5));
+    const rig = createEngineRig(P, mulberry32(5));
     rig.ignite();
     const dt = 1 / 60;
     let t = 0;
@@ -89,8 +94,8 @@ describe('engine rig', () => {
   });
 
   test('reduced motion scales every band', () => {
-    const full = run(createEngineRig(mulberry32(6)), 8, { blend: 1, speed: 22, ampScale: 1 });
-    const reduced = run(createEngineRig(mulberry32(6)), 8, { blend: 1, speed: 22, ampScale: 0.25 });
+    const full = run(createEngineRig(P, mulberry32(6)), 8, { blend: 1, speed: 22, ampScale: 1 });
+    const reduced = run(createEngineRig(P, mulberry32(6)), 8, { blend: 1, speed: 22, ampScale: 0.25 });
     expect(reduced.maxY).toBeLessThan(full.maxY * 0.5);
   });
 });

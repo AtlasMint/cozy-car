@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAR } from '../../core/constants';
+import type { VehicleSpec } from '../../core/vehicles';
 import { Builder, paneGeometry } from './parts';
 import type { CarMaterials } from './parts';
 
@@ -12,7 +12,7 @@ export interface DressingRig {
   freshener: THREE.Group;
 }
 
-export function createDressing(b: Builder, m: CarMaterials): DressingRig {
+export function createDressing(b: Builder, m: CarMaterials, v: VehicleSpec): DressingRig {
 
   // Rear-view mirror hanging from the header, reflective face toward the driver (and camera).
   b.cyl(0.008, 0.008, 0.1, m.trim, { x: 0.17, y: 1.3, rz: 0.54 });
@@ -22,7 +22,7 @@ export function createDressing(b: Builder, m: CarMaterials): DressingRig {
   // Air freshener: a little tree card on a string, pivoting from under the mirror.
   const freshener = new THREE.Group();
   freshener.name = 'freshener';
-  freshener.position.set(...CAR.MIRROR_PIVOT);
+  freshener.position.set(...v.anchors.swingPivot);
   const stringGeom = new THREE.CylinderGeometry(0.0015, 0.0015, 0.11, 6);
   stringGeom.translate(0, -0.055, 0);
   const tree = new THREE.Shape();

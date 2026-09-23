@@ -1,17 +1,14 @@
 import * as THREE from 'three';
 import type { Stage } from '../stage';
-import { createChassis, type ChassisRig } from './chassis';
-import { createShell, type ShellRig } from './shell';
-import { createInterior, type InteriorRig } from './interior';
 import { createRadio, type RadioRig } from './radio';
 import { createWheels, type WheelsRig } from './wheels';
-import { createDressing, type DressingRig } from './dressing';
-import { Builder, createMaterials, type CarMaterials, type PaintSpec } from './parts';
+import { Builder, createMaterials, type CarMaterials } from './parts';
+import { HATCHBACK, type BodyKit, type VehicleSpec } from '../../core/vehicles';
 import { createDriverFigure, type DriverFigure } from '../driver/figure';
 import { createDriverIdle, type DriverIdle } from '../driver/idle';
 import { createExhaust, type ExhaustRig } from './exhaust';
 import { createEngineRig, type EngineRig } from '../../motion/engineRig';
-import { MOTION, PALETTE } from '../../core/constants';
+import { MOTION } from '../../core/constants';
 import type { Mode } from '../../core/store';
 import { damp } from '../../util/math';
 
@@ -38,12 +35,9 @@ export interface CarInputs {
  */
 export interface Car {
   group: THREE.Group;
-  chassis: ChassisRig;
-  shell: ShellRig;
-  interior: InteriorRig;
+  body: BodyKit;
   radio: RadioRig;
   wheels: WheelsRig;
-  dressing: DressingRig;
   driverRoot: THREE.Group;
   driver: DriverFigure;
   idle: DriverIdle;
@@ -57,40 +51,27 @@ export interface Car {
   dispose(): void;
 }
 
-/** Today's hatchback colours. Phase 2 moves this onto the vehicle spec. */
-const HATCHBACK_PAINT: PaintSpec = {
-  body: PALETTE.BODY,
-  trim: PALETTE.BODY_TRIM,
-  hub: PALETTE.HUB,
-  vinyl: PALETTE.VINYL,
-  fabric: PALETTE.FABRIC,
-  fabricDark: '#4E4138',
-};
-
-export function createCar(stage: Stage, paint: PaintSpec = HATCHBACK_PAINT): Car {
-  const materials: CarMaterials = createMaterials(paint);
+export function createCar(stage: Stage, v: VehicleSpec = HATCHBACK): Car {
+  const materials: CarMaterials = createMaterials(v.paint);
   const b = new Builder(materials);
-  const chassis = createChassis(b, materials);
-  const shell = createShell(b, materials);
-  const interior = createInterior(b, materials);
-  const radio = createRadio(b, materials);
-  const dressing = createDressing(b, materials);
+  const body = v.build(b, materials, v);
+  const radio = createRadio(b, materials, v);
   const built = b.finish('car');
-  const wheels = createWheels(materials);
+  const wheels = createWheels(materials, v);
   const driverRoot = new THREE.Group();
   driverRoot.name = 'driverRoot';
 
   stage.bodyRig.add(built.group, driverRoot);
   stage.wheels.add(wheels.group);
-  const driver = createDriverFigure(interior.wheelNode, driverRoot);
+  const driver = createDriverFigure(body.wheelNode, driverRoot, v);
   const idle = createDriverIdle(driver);
-  const exhaust = createExhaust(chassis.exhaustTip);
+  const exhaust = createExhaust(body.exhaustTip);
   stage.carRoot.add(exhaust.group);
-  const rig = createEngineRig();
+  const rig = createEngineRig(v.motion);
 
   // Air freshener: a damped pendulum forced by the body's accelerations.
   const pend = { a: 0, av: 0, b: 0, bv: 0 };
-  const g = 9.81 / MOTION.FRESHENER.length;
+  const g = 9.81 / v.anchors.swingLength;
   let lights = 0;
 
   const wheelOrder = [0, 1, 2, 3].map((i) => {
@@ -127,18 +108,18 @@ export function createCar(stage: Stage, paint: PaintSpec = HATCHBACK_PAINT): Car
       const forceB = out.yAccel * F.yGain * 0.15;
       pend.bv += (-g * pend.b - F.damping * pend.bv + forceB) * dt;
       pend.b += pend.bv * dt;
-      dressing.freshener.rotation.z = pend.a;
-      dressing.freshener.rotation.x = pend.b;
+      body.swing.rotation.z = pend.a;
+      body.swing.rotation.x = pend.b;
 
-      interior.setTacho(out.rpm);
-      interior.setSpeedo(inp.speed * 3.6);
+      body.setTacho(out.rpm);
+      body.setSpeedo(inp.speed * 3.6);
 
-      const rate = inp.engine * (MOTION.EXHAUST.chillRate + (MOTION.EXHAUST.focusRate - MOTION.EXHAUST.chillRate) * inp.blend) * inp.coldBoost;
+      const rate = inp.engine * (v.motion.exhaust.chillRate + (v.motion.exhaust.focusRate - v.motion.exhaust.chillRate) * inp.blend) * inp.coldBoost;
       exhaust.update(inp.dt, rate, inp.speed);
 
       lights = damp(lights, inp.engine > 0.02 ? 1 : 0, MOTION.IGNITION_LIGHTS_LAMBDA, inp.dt);
-      shell.setLights(lights, lights);
-      interior.setDashGlow(lights);
+      body.setLights(lights, lights);
+      body.setDashGlow(lights);
       radio.setPower(lights);
 
       idle.update(inp.dt, inp.elapsed, out.y, inp.mode, inp.reducedMotion);
@@ -149,12 +130,9 @@ export function createCar(stage: Stage, paint: PaintSpec = HATCHBACK_PAINT): Car
       exhaust.cough();
     },
     group: built.group,
-    chassis,
-    shell,
-    interior,
+    body,
     radio,
     wheels,
-    dressing,
     driverRoot,
     driver,
     idle,

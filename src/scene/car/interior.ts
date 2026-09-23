@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAR } from '../../core/constants';
+import type { VehicleSpec } from '../../core/vehicles';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Builder, tilted } from './parts';
 import type { CarMaterials } from './parts';
@@ -18,10 +18,8 @@ export interface InteriorRig {
   setDashGlow(k: number): void;
 }
 
-const W = CAR.FAR_WALL_Z;
-
-function seat(b: Builder, m: CarMaterials, zc: number): void {
-  const hw = CAR.SEAT_WIDTH / 2;
+function seat(b: Builder, m: CarMaterials, v: VehicleSpec, zc: number): void {
+  const hw = v.cabin.seatWidth / 2;
   // Cushion with side bolsters and the frame beneath.
   b.spanBox(0.5, 0.14, zc - hw, zc + hw, m.fabric, { x: 0.2, y: 0.51 });
   b.spanBox(0.5, 0.05, zc + hw - 0.08, zc + hw, m.fabricDark, { x: 0.2, y: 0.605 });
@@ -45,17 +43,18 @@ function seat(b: Builder, m: CarMaterials, zc: number): void {
   b.spanBox(0.014, 0.05, zc - 0.064, zc - 0.05, m.metal, { x: px, y: py, rz: tilt });
 }
 
-export function createInterior(b: Builder, m: CarMaterials): InteriorRig {
+export function createInterior(b: Builder, m: CarMaterials, v: VehicleSpec): InteriorRig {
+  const W = v.dims.wallZ;
 
   // Dashboard: raised rear lip, deeper front section, knee panel beneath, glovebox lid.
   b.spanBox(0.1, 0.23, -W, W, m.vinyl, { x: 0.67, y: 0.875 });
   b.spanBox(0.18, 0.2, -W, W, m.vinyl, { x: 0.81, y: 0.86 });
   b.spanBox(0.16, 0.3, -W, W, m.vinylLight, { x: 0.82, y: 0.61 });
-  b.box(0.012, 0.16, 0.36, m.vinyl, { x: 0.735, y: 0.64, z: CAR.PASSENGER_Z - 0.04 });
-  b.box(0.006, 0.015, 0.05, m.chrome, { x: 0.728, y: 0.7, z: CAR.PASSENGER_Z - 0.04 });
+  b.box(0.012, 0.16, 0.36, m.vinyl, { x: 0.735, y: 0.64, z: v.cabin.passengerZ - 0.04 });
+  b.box(0.006, 0.015, 0.05, m.chrome, { x: 0.728, y: 0.7, z: v.cabin.passengerZ - 0.04 });
   // Binnacle hood over the wheel, two dials with emissive rings.
-  b.box(0.16, 0.12, 0.34, m.vinyl, { x: 0.58, y: 0.99, z: CAR.DRIVER_Z });
-  const dialZ = [CAR.DRIVER_Z - 0.08, CAR.DRIVER_Z + 0.08] as const;
+  b.box(0.16, 0.12, 0.34, m.vinyl, { x: 0.58, y: 0.99, z: v.cabin.driverZ });
+  const dialZ = [v.cabin.driverZ - 0.08, v.cabin.driverZ + 0.08] as const;
   for (const z of dialZ) {
     b.cylX(0.05, 0.01, m.dialFace, { x: 0.505, y: 0.99, z });
     b.add(new THREE.TorusGeometry(0.046, 0.004, 8, 24), m.dashGlow, { x: 0.5, y: 0.99, z, ry: Math.PI / 2 });
@@ -73,8 +72,8 @@ export function createInterior(b: Builder, m: CarMaterials): InteriorRig {
   b.cyl(0.012, 0.012, 0.22, m.vinyl, { x: 0.0, y: 0.54, rz: 0.6 });
 
   // Seats.
-  seat(b, m, CAR.DRIVER_Z);
-  seat(b, m, CAR.PASSENGER_Z);
+  seat(b, m, v, v.cabin.driverZ);
+  seat(b, m, v, v.cabin.passengerZ);
 
   // Rear bench, headrests, parcel shelf.
   b.spanBox(0.5, 0.14, -0.72, 0.72, m.fabric, { x: -0.97, y: 0.51 });
@@ -91,9 +90,9 @@ export function createInterior(b: Builder, m: CarMaterials): InteriorRig {
   // Steering wheel (live node) and column.
   const wheelNode = new THREE.Group();
   wheelNode.name = 'steeringWheel';
-  wheelNode.position.set(...CAR.WHEEL_CENTRE);
-  wheelNode.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...CAR.WHEEL_NORMAL));
-  const wheelParts: THREE.BufferGeometry[] = [new THREE.TorusGeometry(CAR.STEERING_RADIUS, 0.021, 10, 32)];
+  wheelNode.position.set(...v.cabin.wheelCentre);
+  wheelNode.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(...v.cabin.wheelNormal));
+  const wheelParts: THREE.BufferGeometry[] = [new THREE.TorusGeometry(v.cabin.steeringRadius, 0.021, 10, 32)];
   const hub = new THREE.CylinderGeometry(0.045, 0.045, 0.04, 16);
   hub.rotateX(Math.PI / 2);
   wheelParts.push(hub);
@@ -109,7 +108,7 @@ export function createInterior(b: Builder, m: CarMaterials): InteriorRig {
   wheelMesh.castShadow = true;
   wheelNode.add(wheelMesh);
   b.dyn(wheelNode, wheelGeom);
-  b.cyl(0.02, 0.02, 0.215, m.vinyl, { x: 0.51, y: 0.895, z: CAR.DRIVER_Z, rz: 1.19 });
+  b.cyl(0.02, 0.02, 0.215, m.vinyl, { x: 0.51, y: 0.895, z: v.cabin.driverZ, rz: 1.19 });
 
   // Needles (live).
   const needles: THREE.Group[] = [];
@@ -130,10 +129,10 @@ export function createInterior(b: Builder, m: CarMaterials): InteriorRig {
   return {
     wheelNode,
     setTacho(rpm) {
-      tacho.rotation.x = needleAngle(rpm / CAR.GAUGE.rpmFull);
+      tacho.rotation.x = needleAngle(rpm / v.gauges.rpmFull);
     },
     setSpeedo(kmh) {
-      speedo.rotation.x = needleAngle(kmh / CAR.GAUGE.kmhFull);
+      speedo.rotation.x = needleAngle(kmh / v.gauges.kmhFull);
     },
     setDashGlow(k) {
       m.dashGlow.emissiveIntensity = k * 1.2;

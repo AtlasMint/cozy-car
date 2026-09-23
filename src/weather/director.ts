@@ -89,7 +89,7 @@ export function createWeatherDirector(deps: DirectorDeps): WeatherDirector {
   const rain = createRain(quality);
   const snow = createSnow(quality);
   const splash = createSplash(car.wheels.wheels.map((w) => new THREE.Vector3(w.x, 0, w.z)));
-  const glass = createGlass(car.shell.panes);
+  const glass = createGlass(car.body.panes);
   const lightning = createLightning();
   rain.mount(stage.weatherRoot);
   snow.mount(stage.weatherRoot);

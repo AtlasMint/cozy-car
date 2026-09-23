@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAR } from '../../core/constants';
+import type { VehicleSpec } from '../../core/vehicles';
 import { Builder, paneGeometry } from './parts';
 import type { CarMaterials } from './parts';
 
@@ -20,16 +20,18 @@ export interface ShellRig {
   setLights(head: number, tail: number): void;
 }
 
-const S = CAR.SILL_Y;
-const W = CAR.FAR_WALL_Z;
-const T = CAR.FAR_WALL_THICKNESS;
+/** The two side windows, whose sill sits on the vehicle's belt line. */
+function windows(v: VehicleSpec): [number, number][][] {
+  const B = v.dims.beltY;
+  return [
+    [[0.5, B], [0.17, 1.33], [-0.28, 1.33], [-0.28, B]],
+    [[-0.38, B], [-0.38, 1.33], [-1.1, 1.33], [-1.27, B]],
+  ];
+}
 
-const B = CAR.BELT_Y;
-const R = CAR.ROOF_Y;
-const FRONT_WINDOW: [number, number][] = [[0.5, B], [0.17, 1.33], [-0.28, 1.33], [-0.28, B]];
-const REAR_WINDOW: [number, number][] = [[-0.38, B], [-0.38, 1.33], [-1.1, 1.33], [-1.27, B]];
-
-function sideProfile(): THREE.Shape {
+function sideProfile(v: VehicleSpec): THREE.Shape {
+  const S = v.dims.sillY;
+  const R = v.dims.wallTopY;
   const s = new THREE.Shape();
   s.moveTo(-1.86, S);
   s.lineTo(-1.86, 0.52);
@@ -44,16 +46,16 @@ function sideProfile(): THREE.Shape {
   s.lineTo(1.9, 0.8);
   s.lineTo(1.9, S);
   // Bottom edge from the nose back to the tail, with a wheel arch over each wheel.
-  const r = CAR.ARCH_RADIUS;
-  const cy = CAR.WHEEL_RADIUS;
+  const r = v.dims.archRadius;
+  const cy = v.dims.wheelRadius;
   const half = Math.sqrt(r * r - (S - cy) * (S - cy));
   const a0 = Math.asin((S - cy) / r);
-  for (const cx of [CAR.WHEELBASE / 2, -CAR.WHEELBASE / 2]) {
+  for (const cx of [v.dims.wheelbase / 2, -v.dims.wheelbase / 2]) {
     s.lineTo(cx + half, S);
     s.absarc(cx, cy, r, a0, Math.PI - a0, false);
   }
   s.lineTo(-1.86, S);
-  for (const win of [FRONT_WINDOW, REAR_WINDOW]) {
+  for (const win of windows(v)) {
     const hole = new THREE.Path();
     win.forEach(([x, y], i) => (i === 0 ? hole.moveTo(x, y) : hole.lineTo(x, y)));
     hole.closePath();
@@ -69,7 +71,11 @@ function pathShape(points: [number, number][]): THREE.Shape {
   return s;
 }
 
-export function createShell(b: Builder, m: CarMaterials): ShellRig {
+export function createShell(b: Builder, m: CarMaterials, v: VehicleSpec): ShellRig {
+  const S = v.dims.sillY;
+  const W = v.dims.wallZ;
+  const T = v.dims.wallThickness;
+  const [FRONT_WINDOW, REAR_WINDOW] = windows(v);
   const panes: GlassPane[] = [];
 
   const addPane = (name: string, geometry: THREE.BufferGeometry) => {
@@ -85,7 +91,7 @@ export function createShell(b: Builder, m: CarMaterials): ShellRig {
   for (const sign of [1, -1]) {
     const side = sign > 0 ? 'Far' : 'Near';
     // Side wall: the whole silhouette with window holes and wheel arches, 5 cm thick.
-    const wall = new THREE.ExtrudeGeometry(sideProfile(), { depth: T, bevelEnabled: false, curveSegments: 6 });
+    const wall = new THREE.ExtrudeGeometry(sideProfile(v), { depth: T, bevelEnabled: false, curveSegments: 6 });
     wall.translate(0, 0, sign > 0 ? W : -W - T);
     b.add(wall, m.body);
     // Side glass sits mid-wall.
@@ -111,8 +117,8 @@ export function createShell(b: Builder, m: CarMaterials): ShellRig {
   }
 
   // Header rails where a roof would meet the glass: the windshield header and the hatch hinge.
-  b.box(0.16, 0.055, CAR.WIDTH, m.body, { x: 0.1, y: 1.3875 });
-  b.box(0.1, 0.05, CAR.WIDTH, m.body, { x: -1.25, y: 1.39 });
+  b.box(0.16, 0.055, v.dims.width, m.body, { x: 0.1, y: 1.3875 });
+  b.box(0.1, 0.05, v.dims.width, m.body, { x: -1.25, y: 1.39 });
 
   // Bonnet — slightly raised over the engine — front panel and grille.
   b.spanBox(1.197, 0.03, -W - T, W + T, m.body, { x: 1.255, y: 0.925, rz: -0.1088 });

@@ -1,4 +1,5 @@
 export type Mode = 'chill' | 'focus';
+export type VehicleId = 'hatchback' | 'van' | 'sports';
 export type WeatherKind =
   | 'clear'
   | 'cloudy'

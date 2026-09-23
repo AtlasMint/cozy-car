@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAR } from '../../core/constants';
+import type { VehicleSpec } from '../../core/vehicles';
 import { Builder } from './parts';
 import type { CarMaterials } from './parts';
 
@@ -11,11 +11,11 @@ export interface ChassisRig {
   exhaustTip: THREE.Vector3;
 }
 
-export function createChassis(b: Builder, m: CarMaterials): ChassisRig {
-  const F = CAR.FLOOR_Y;
-  const FT = CAR.FLOOR_TOP_Y;
-  const S = CAR.SILL_Y;
-  const W = CAR.FAR_WALL_Z;
+export function createChassis(b: Builder, m: CarMaterials, v: VehicleSpec): ChassisRig {
+  const F = v.dims.floorY;
+  const FT = v.dims.floorTopY;
+  const S = v.dims.sillY;
+  const W = v.dims.wallZ;
   const floorY = (F + FT) / 2;
   const floorH = FT - F;
 
@@ -23,26 +23,26 @@ export function createChassis(b: Builder, m: CarMaterials): ChassisRig {
   // over a low lip; the front and rear sections are full-width blocks with open wheel wells.
   const tubH = S - F;
   const tubY = (F + S) / 2;
-  b.box(1.75, floorH, CAR.WIDTH - 0.04, m.carpet, { x: 0.025, y: floorY });
+  b.box(1.75, floorH, v.dims.width - 0.04, m.carpet, { x: 0.025, y: floorY });
   b.box(1.0, floorH, 1.0, m.metalDark, { x: 1.4, y: floorY });
   b.box(1.05, floorH, 1.0, m.carpet, { x: -1.375, y: floorY });
   for (const sgn of [1, -1]) {
-    b.box(0.41, tubH, CAR.WIDTH, m.body, { x: sgn * 1.7, y: tubY });
-    b.box(0.06, tubH, CAR.WIDTH, m.body, { x: sgn * 0.93, y: tubY });
+    b.box(0.41, tubH, v.dims.width, m.body, { x: sgn * 1.7, y: tubY });
+    b.box(0.06, tubH, v.dims.width, m.body, { x: sgn * 0.93, y: tubY });
     b.box(0.53, tubH, 0.04, m.metalDark, { x: sgn * 1.225, y: tubY, z: 0.52 });
     b.box(0.53, tubH, 0.04, m.metalDark, { x: sgn * 1.225, y: tubY, z: -0.52 });
   }
   // Sills under the doors on both sides.
-  for (const sign of [1, -1]) b.box(1.75, tubH, 0.18, m.body, { x: 0.025, y: tubY, z: sign * (W + CAR.FAR_WALL_THICKNESS - 0.09) });
+  for (const sign of [1, -1]) b.box(1.75, tubH, 0.18, m.body, { x: 0.025, y: tubY, z: sign * (W + v.dims.wallThickness - 0.09) });
   // Transmission tunnel and the rear floor riser under the bench.
   b.box(2.1, 0.13, 0.26, m.carpet, { x: -0.15, y: FT + 0.065 });
   b.box(0.6, 0.12, 1.1, m.carpet, { x: -1.0, y: FT + 0.06 });
   // Bulkhead between the engine bay and the cabin.
-  b.box(0.06, 0.61, CAR.WIDTH - 0.06, m.metalDark, { x: 0.92, y: FT + 0.305 });
+  b.box(0.06, 0.61, v.dims.width - 0.06, m.metalDark, { x: 0.92, y: FT + 0.305 });
   // Bumpers — whole.
-  const halfLength = CAR.LENGTH / 2;
-  b.box(0.08, 0.16, CAR.WIDTH, m.trim, { x: halfLength, y: 0.44 });
-  b.box(0.08, 0.16, CAR.WIDTH, m.trim, { x: -halfLength, y: 0.44 });
+  const halfLength = v.dims.length / 2;
+  b.box(0.08, 0.16, v.dims.width, m.trim, { x: halfLength, y: 0.44 });
+  b.box(0.08, 0.16, v.dims.width, m.trim, { x: -halfLength, y: 0.44 });
 
   // Engine — the thing that is running — under the bonnet.
   const ez = -0.07;
@@ -61,7 +61,7 @@ export function createChassis(b: Builder, m: CarMaterials): ChassisRig {
   b.cylX(0.02, 0.5, m.rubber, { x: 1.55, y: 0.72, z: -0.24 });
 
   // Exhaust: muffler, tailpipe, chrome tip peeking out below the rear bumper toward camera.
-  const tip = new THREE.Vector3(...CAR.EXHAUST_TIP);
+  const tip = new THREE.Vector3(...v.anchors.exhaustTip);
   b.cylX(0.07, 0.45, m.metal, { x: -1.3, y: 0.22, z: -0.45 });
   b.cylX(0.028, 0.5, m.metalDark, { x: -1.75, y: tip.y, z: tip.z });
   b.cylX(0.034, 0.08, m.chrome, { x: tip.x, y: tip.y, z: tip.z });
@@ -69,12 +69,12 @@ export function createChassis(b: Builder, m: CarMaterials): ChassisRig {
   b.box(0.4, 0.16, 0.7, m.rubber, { x: -1.1, y: 0.2 });
 
   // Exposed near-side suspension: strut, spring, lower arm and axle stub at each near wheel.
-  for (const x of [CAR.WHEELBASE / 2, -CAR.WHEELBASE / 2]) {
-    const z = -CAR.TRACK / 2 + 0.11;
+  for (const x of [v.dims.wheelbase / 2, -v.dims.wheelbase / 2]) {
+    const z = -v.dims.track / 2 + 0.11;
     b.cyl(0.02, 0.02, 0.26, m.metal, { x, y: 0.36, z });
     b.cyl(0.045, 0.045, 0.12, m.metalDark, { x, y: 0.42, z });
     b.box(0.04, 0.03, 0.22, m.metalDark, { x, y: 0.26, z: z + 0.08 });
-    b.cylZ(0.03, 0.12, m.metalDark, { x, y: CAR.WHEEL_RADIUS, z: z - 0.02 });
+    b.cylZ(0.03, 0.12, m.metalDark, { x, y: v.dims.wheelRadius, z: z - 0.02 });
   }
 
   return { exhaustTip: tip };

@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import { advanceField, type Instance } from '../../scene/world/scenery';
 import { mulberry32 } from '../math';
+import { HATCHBACK } from '../../core/vehicles';
+
+const CRUISE = HATCHBACK.speed.focus;
 
 const BEHIND = -9;
 const LENGTH = 40;
@@ -15,7 +18,7 @@ describe('scenery treadmill wrap', () => {
     const inst = field(40);
     for (let step = 0; step < 5000; step++) {
       const dt = rng() * 0.05; // includes the clamped worst case
-      advanceField(inst, 22 * dt, BEHIND, LENGTH);
+      advanceField(inst, CRUISE * dt, BEHIND, LENGTH);
       for (const i of inst) {
         expect(i.x).toBeGreaterThanOrEqual(BEHIND);
         expect(i.x).toBeLessThan(BEHIND + LENGTH);
@@ -28,7 +31,7 @@ describe('scenery treadmill wrap', () => {
     const gap = LENGTH / 20;
     let travelled = 0;
     for (let step = 0; step < 3000; step++) {
-      const dx = 22 / 60;
+      const dx = CRUISE / 60;
       travelled += dx;
       advanceField(inst, dx, BEHIND, LENGTH);
     }

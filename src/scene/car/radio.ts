@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { CAR, PALETTE } from '../../core/constants';
+import type { VehicleSpec } from '../../core/vehicles';
+import { PALETTE } from '../../core/constants';
 import { Builder } from './parts';
 import type { CarMaterials } from './parts';
 
@@ -22,8 +23,8 @@ export interface RadioRig {
 const LCD_W = 256;
 const LCD_H = 64;
 
-export function createRadio(b: Builder, m: CarMaterials): RadioRig {
-  const [fx, fy, fz] = CAR.RADIO_FACE;
+export function createRadio(b: Builder, m: CarMaterials, v: VehicleSpec): RadioRig {
+  const [fx, fy, fz] = v.anchors.radioFace;
 
   b.box(0.016, 0.12, 0.3, m.trim, { x: fx, y: fy, z: fz });
   b.cylX(0.014, 0.014, m.hub, { x: fx - 0.012, y: fy, z: fz - 0.125 });

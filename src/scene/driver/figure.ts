@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAR } from '../../core/constants';
+import type { VehicleSpec } from '../../core/vehicles';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { occupantMaterials } from '../car/parts';
 
@@ -56,7 +56,7 @@ function aim(node: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3): void
   node.scale.set(1, len, 1);
 }
 
-export function createDriverFigure(wheelNode: THREE.Object3D, parent: THREE.Object3D): DriverFigure {
+export function createDriverFigure(wheelNode: THREE.Object3D, parent: THREE.Object3D, v: VehicleSpec): DriverFigure {
   const m = occupantMaterials();
   const geoms: THREE.BufferGeometry[] = [];
   const g = <T extends THREE.BufferGeometry>(geom: T): T => {
@@ -96,7 +96,7 @@ export function createDriverFigure(wheelNode: THREE.Object3D, parent: THREE.Obje
 
   const hips = new THREE.Group();
   hips.name = 'hips';
-  hips.position.set(0.16, 0.6, CAR.DRIVER_Z);
+  hips.position.set(0.16, 0.6, v.cabin.driverZ);
   root.add(hips);
   hips.add(mesh(g(new THREE.SphereGeometry(0.15, 12, 8)).scale(1.1, 0.7, 1.25), m.denim));
 
@@ -151,13 +151,13 @@ export function createDriverFigure(wheelNode: THREE.Object3D, parent: THREE.Obje
   torso.add(shoulderL, shoulderR);
 
   // Grip points on the wheel at ten and two, in wheel space.
-  const centre = new THREE.Vector3(...CAR.WHEEL_CENTRE);
-  const n = new THREE.Vector3(...CAR.WHEEL_NORMAL);
+  const centre = new THREE.Vector3(...v.cabin.wheelCentre);
+  const n = new THREE.Vector3(...v.cabin.wheelNormal);
   const up = new THREE.Vector3(0, 1, 0).addScaledVector(n, -n.y).normalize();
   const right = new THREE.Vector3().crossVectors(up, n).normalize();
   const gripWorld = (angleDeg: number) => {
     const a = (angleDeg * Math.PI) / 180;
-    return centre.clone().addScaledVector(right, Math.cos(a) * CAR.STEERING_RADIUS).addScaledVector(up, Math.sin(a) * CAR.STEERING_RADIUS);
+    return centre.clone().addScaledVector(right, Math.cos(a) * v.cabin.steeringRadius).addScaledVector(up, Math.sin(a) * v.cabin.steeringRadius);
   };
   wheelNode.updateWorldMatrix(true, false);
   const gripL = new THREE.Object3D();
@@ -195,7 +195,7 @@ export function createDriverFigure(wheelNode: THREE.Object3D, parent: THREE.Obje
     legParts.push({ geom });
   };
   for (const dz of [-0.09, 0.09]) {
-    const z = CAR.DRIVER_Z + dz;
+    const z = v.cabin.driverZ + dz;
     placed(new THREE.CylinderGeometry(0.075, 0.07, 1, 10), new THREE.Vector3(0.18, 0.63, z), new THREE.Vector3(0.52, 0.64, z));
     legParts.push({ geom: new THREE.SphereGeometry(0.072, 10, 8), p: { x: 0.52, y: 0.64, z } });
     placed(new THREE.CylinderGeometry(0.06, 0.055, 1, 10), new THREE.Vector3(0.52, 0.64, z), new THREE.Vector3(0.7, 0.42, z));
