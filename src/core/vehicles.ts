@@ -15,7 +15,7 @@ import { buildHatchback } from '../scene/car/bodies/hatchback';
 import { buildSports } from '../scene/car/bodies/sports';
 import { buildVan } from '../scene/car/bodies/van';
 import { AUDIO, CAMERA, CAR, INTERACTION, MOTION, PALETTE, SPEED, WEATHER_FX } from './constants';
-import { DEG } from '../util/math';
+import { clamp01, DEG } from '../util/math';
 import type { Builder, CarMaterials, PaintSpec } from '../scene/car/parts';
 import type { GlassPane } from '../scene/car/shell';
 import type * as THREE from 'three';
@@ -185,6 +185,30 @@ export interface VehicleSpec {
   gauges: { rpmFull: number; kmhFull: number };
   speed: { focus: number };
   build(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKit;
+}
+
+/**
+ * How much of the cabin floor this camera can see past the near wall. A point in the cabin
+ * clears that wall only when `y + z + wallZ > wallTopY`, so the visible strip of floor starts
+ * at `z = wallTopY − floorTopY − wallZ`.
+ *
+ * This single number decides how tall a body is allowed to be. The hatchback shows 0.31 of its
+ * floor and the roadster 0.42.
+ */
+export function floorExposure(d: Pick<VehicleDims, 'wallZ' | 'floorTopY' | 'wallTopY'>): number {
+  return clamp01((2 * d.wallZ + d.floorTopY - d.wallTopY) / (2 * d.wallZ));
+}
+
+/** Below this, a body is a box you cannot see into, and solid walls stop being an option. */
+export const SEE_THROUGH_BELOW = 0.2;
+
+/**
+ * Whether a body must draw its two camera-facing walls — the near one at −z and the rear one
+ * at −x — see-through rather than solid. Derived from the geometry rather than declared on the
+ * spec, so no vehicle can claim a roof height its own interior does not survive.
+ */
+export function seeThrough(v: VehicleSpec): boolean {
+  return floorExposure(v.dims) < SEE_THROUGH_BELOW;
 }
 
 /**
@@ -421,9 +445,10 @@ export const SPORTS: VehicleSpec = {
 
 
 /**
- * The camper van. Its wall top is derived for interior-exposure parity with the hatchback —
- * see the note in bodies/van.ts — which is what makes it a high-top van rather than a
- * coachbuilt box, and why it needs no shear to be readable from this camera.
+ * The camper van, at the height a 5.6 m panel van actually is. Its roof no longer trades scale
+ * for an interior you can see: `floorExposure` is zero here, so the near and rear walls are
+ * drawn see-through instead (see bodies/van.ts). Nothing is cut away — the walls are all still
+ * there, they just stop being opaque.
  */
 export const VAN: VehicleSpec = {
   id: 'van',
@@ -447,8 +472,10 @@ export const VAN: VehicleSpec = {
     floorY: 0.5,
     floorTopY: 0.56,
     sillY: 0.62,
-    beltY: 1.4,
-    wallTopY: 1.95,
+    // Window sill: above the worktop at floor + 1.04, so the kitchen window clears its own tap.
+    beltY: 1.62,
+    // A high-top van, measured rather than composed down: 5.6 m long and 2.58 m to the deck.
+    wallTopY: 2.58,
     wheelbase: 3.2,
     track: 1.62,
     wheelRadius: 0.36,
@@ -473,7 +500,9 @@ export const VAN: VehicleSpec = {
     radioHitbox: [0.18, 0.24, 0.46],
     radioFocusOffset: [0.03, 0.02, -0.06],
     exhaustTip: [-2.6, 0.42, -0.72],
-    swingPivot: [1.66, 1.8, -0.22],
+    // Hung off the front cross-rail of the high top. At 1.66 it hung from nothing: the cab
+    // roofline is 1.64 there, so the mobile floated above the windscreen.
+    swingPivot: [1.28, 2.54, -0.22],
     swingLength: 0.26,
     headlight: { x: 2.78, y: 0.86, z: 0.74 },
     coneLength: 5.2,
@@ -481,7 +510,7 @@ export const VAN: VehicleSpec = {
     pool: { w: 8.6, d: 4.4, x: 6.8 },
     cabinLight: [1.55, 1.55, 0.1],
     cabinDistance: 2.8,
-    livingLight: [-1.2, 1.78, 0.1],
+    livingLight: [-1.2, 2.38, 0.1],
     livingDistance: 4.5,
     dashLight: [1.95, 1.34, 0.1],
     dashDistance: 1.8,
@@ -490,9 +519,10 @@ export const VAN: VehicleSpec = {
     shadowNormalBias: 0.03,
   },
   // Verified by screenshot: 7.0 cropped the nose and the rail. 8.0 restores the hatchback's
-  // top margin and bottom void, and radioZoom scales with it so the push-in frames the same height.
-  camera: { viewSize: 8.0, minViewWidth: 8.6, target: [-0.3, 1.05, -0.9], radioZoom: 4.92 },
-  shelter: { min: [-2.86, 0, -1.07], max: [2.86, 2.0, 1.07] },
+  // top margin and bottom void, and radioZoom scales with it so the push-in frames the same
+  // height. The target rises by half the roof's growth so the taller body stays centred.
+  camera: { viewSize: 8.0, minViewWidth: 8.6, target: [-0.3, 1.36, -0.9], radioZoom: 4.92 },
+  shelter: { min: [-2.86, 0, -1.07], max: [2.86, 2.63, 1.07] },
   motion: {
     // A tall heavy body wallows slowly on soft springs, and shakes lower and harder.
     idleHz: 8,

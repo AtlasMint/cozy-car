@@ -1,36 +1,44 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Builder, paneGeometry, type CarMaterials } from '../parts';
-import type { BodyKit, VehicleSpec } from '../../../core/vehicles';
+import { seeThrough, type BodyKit, type VehicleSpec } from '../../../core/vehicles';
 import type { GlassPane } from '../shell';
 import { lerp } from '../../../util/math';
 
 /**
- * The camper van: a high-top van with a lived-in back.
+ * The camper van: a high-top van with a lived-in back, at the height one actually is.
  *
- * Its wall top is *derived*, not chosen. A point inside the cabin is visible past the near wall
- * only when `y + z + wallZ > wallTopY`; solving that for the hatchback's ~30% floor exposure at
- * this floor height and width gives 1.95 m. A realistic 2.4 m coachbuilt box shows 19%, which
- * is the open-shoebox failure — a big box you cannot see into. That is why this is a van rather
- * than a Class C, and why it needs no shear to be readable.
+ * It used to be 1.95 m, which is a number solved for rather than measured: a point inside the
+ * cabin clears the near wall only when `y + z + wallZ > wallTopY`, and 1.95 was the tallest
+ * roof that still showed the hatchback's ~30% of floor. At 2.58 m — a real 5.6 m panel van with
+ * a high top — `floorExposure` is zero and the solid near wall shows you nothing at all.
+ *
+ * So the two walls this camera looks through, the near one at −z and the rear one at −x, are
+ * built from `m.ghost` instead of `m.body`. Nothing is cut away and nothing is missing: the
+ * walls are all present, with their windows, decals and skirts, they simply stop being opaque
+ * above the sill. `seeThrough(v)` decides it from the geometry, so the two facts cannot drift.
  *
  * The long flank, the open wall-top rail and the dinette table under its light are the three
  * hero shapes. See PLAN-cars.md §15.
  */
 
-const DECK = 1.95; // wall top
 const LIVING_X0 = -2.8;
 const LIVING_X1 = 1.3;
 
+/** Side window band: sill on the vehicle's belt line, half a metre of glass above it. */
+const WINDOW_H = 0.5;
+
 function sideProfile(v: VehicleSpec): THREE.Shape {
   const S = v.dims.sillY;
+  const DECK = v.dims.wallTopY;
   const half = v.dims.length / 2;
   const s = new THREE.Shape();
   s.moveTo(-half, S);
   s.lineTo(-half, DECK);
   s.lineTo(LIVING_X1, DECK);
-  // The top line steps down over the cab, and again over the rear third, so 5.6 m of roofline
-  // is never a dead straight edge.
+  // The front face of the high top: a steep raked drop onto the cab roof, which is what makes
+  // the extra half-metre read as a pod bonded onto a van rather than as a taller van.
+  s.lineTo(1.36, 2.16);
   s.lineTo(1.42, 1.88);
   s.lineTo(2.05, 1.25);
   s.lineTo(2.72, 1.18);
@@ -48,10 +56,11 @@ function sideProfile(v: VehicleSpec): THREE.Shape {
   s.lineTo(-half, S);
 
   // Square windows: campers have square windows, and it is the cheapest way to say
-  // "this is not a car".
+  // "this is not a car". Both sit on the belt line so the band reads as one line down the flank.
+  const B = v.dims.beltY;
   for (const [x0, x1, y0, y1] of [
-    [0.95, -0.15, 1.4, 1.82],
-    [-1.25, -1.95, 1.5, 1.82],
+    [0.95, -0.15, B, B + WINDOW_H],
+    [-1.25, -1.95, B + 0.1, B + WINDOW_H],
   ] as const) {
     const h = new THREE.Path();
     h.moveTo(x0, y0);
@@ -69,7 +78,11 @@ export function buildVan(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKit {
   const half = d.length / 2;
   const W = d.wallZ;
   const T = d.wallThickness;
+  const DECK = d.wallTopY;
+  const B = d.beltY;
   const floor = d.floorTopY;
+  // The camera looks from −x, −z: those two walls are the ones between it and the cabin.
+  const wallMat = seeThrough(v) ? m.ghost : m.body;
   const panes: GlassPane[] = [];
 
   const addPane = (name: string, geometry: THREE.BufferGeometry) => {
@@ -84,13 +97,13 @@ export function buildVan(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKit {
   for (const sign of [1, -1]) {
     const wall = new THREE.ExtrudeGeometry(sideProfile(v), { depth: T, bevelEnabled: false, curveSegments: 8 });
     wall.translate(0, 0, sign > 0 ? W : -W - T);
-    b.add(wall, m.body);
+    b.add(wall, sign > 0 ? m.body : wallMat);
 
     // Side window glass. A PlaneGeometry already lies in XY facing ±Z, which is exactly the
     // orientation a window in a side wall needs — it only has to be moved into place.
     for (const [name, x0, x1, y0, y1] of [
-      ['dinette', 0.95, -0.15, 1.4, 1.82],
-      ['kitchen', -1.25, -1.95, 1.5, 1.82],
+      ['dinette', 0.95, -0.15, B, B + WINDOW_H],
+      ['kitchen', -1.25, -1.95, B + 0.1, B + WINDOW_H],
     ] as const) {
       const geo = new THREE.PlaneGeometry(Math.abs(x1 - x0), y1 - y0);
       geo.translate((x0 + x1) / 2, (y0 + y1) / 2, sign * (W + T / 2));
@@ -119,9 +132,10 @@ export function buildVan(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKit {
   // Cab floor, one step lower.
   b.box(1.5, 0.06, 2 * W - 0.1, m.carpet, { x: 2.05, y: floor - 0.2 });
   b.box(0.24, 0.2, 2 * W - 0.1, m.vinylLight, { x: LIVING_X1 + 0.12, y: floor - 0.1 });
-  // Rear wall with a window that faces camera — the pane the droplets actually read on.
-  b.box(0.06, DECK - d.sillY, 2 * W, m.body, { x: LIVING_X0 - 0.03, y: (d.sillY + DECK) / 2 });
-  addPane('rear', paneGeometry(LIVING_X0 - 0.06, 1.5, LIVING_X0 - 0.06, 2.1, -0.45, 0.45));
+  // Rear wall — the other one the camera looks through — with the window that faces it, which
+  // is the pane the droplets actually read on.
+  b.box(0.06, DECK - d.sillY, 2 * W, wallMat, { x: LIVING_X0 - 0.03, y: (d.sillY + DECK) / 2 });
+  addPane('rear', paneGeometry(LIVING_X0 - 0.06, B + 0.1, LIVING_X0 - 0.06, B + 0.7, -0.45, 0.45));
   b.box(0.02, 0.13, 0.5, m.plate, { x: LIVING_X0 - 0.07, y: 0.95 });
   b.box(0.1, 0.24, 2 * (W + T), m.trim, { x: LIVING_X0 - 0.06, y: 0.72 });
   b.box(0.1, 0.24, 2 * (W + T), m.trim, { x: half - 0.02, y: 0.72 });
@@ -160,6 +174,17 @@ export function buildVan(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKit {
   for (const z of [0.44, 0.58]) b.add(new THREE.TorusGeometry(0.038, 0.006, 6, 16), m.chrome, { x: -1.72, y: floor + 1.1, z, rx: Math.PI / 2 });
   b.cyl(0.11, 0.11, 0.03, m.chrome, { x: -2.18, y: floor + 1.06, z: 0.62 });
   b.cyl(0.012, 0.012, 0.16, m.chrome, { x: -2.3, y: floor + 1.14, z: 0.62 });
+  // Overhead lockers above the window band. The half-metre a high top adds is exactly the
+  // half-metre a camper puts lockers in; without them the new wall is only more wall. Two
+  // units with a gap, because one 3.3 m slab reads as a shelf rather than as cabinets.
+  for (const [x, len] of [
+    [-1.86, 1.72],
+    [0.06, 1.5],
+  ] as const) {
+    b.box(len, 0.32, 0.28, m.vinylLight, { x, y: B + 0.72, z: W - 0.18 });
+    b.box(len - 0.06, 0.26, 0.02, m.cardboard, { x, y: B + 0.72, z: W - 0.33 });
+    for (const dx of [-0.3, 0.3]) b.box(0.02, 0.025, 0.11, m.chrome, { x: x + dx, y: B + 0.6, z: W - 0.35 });
+  }
 
   // ---------------------------------------------------------------- cab
   const seat = (zc: number, swivel: number) => {
@@ -274,16 +299,16 @@ export function buildVan(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKit {
     }
     // Curtains: three overlapping cylinders read as folded fabric far better than a flat plane.
     const curtain = (x: number, z: number) => {
-      for (let i = 0; i < 3; i++) b.cyl(0.035, 0.035, 0.42, m.cardboard, { x: x + i * 0.035, y: 1.61, z: z - i * 0.012 });
-      b.box(0.34, 0.05, 0.03, m.trim, { x: x + 0.04, y: 1.85, z });
+      for (let i = 0; i < 3; i++) b.cyl(0.035, 0.035, WINDOW_H - 0.08, m.cardboard, { x: x + i * 0.035, y: B + WINDOW_H / 2, z: z - i * 0.012 });
+      b.box(0.34, 0.05, 0.03, m.trim, { x: x + 0.04, y: B + WINDOW_H + 0.03, z });
     };
     curtain(0.78, W - 0.03);
     curtain(-1.32, W - 0.03);
     curtain(0.78, -W + 0.03);
-    // A festoon on the far wall, wired to the dash glow so it comes up with ignition.
+    // A festoon slung under the locker, wired to the dash glow so it comes up with ignition.
     for (let i = 0; i < 8; i++) {
       const t = i / 7;
-      b.sphere(0.018, m.dashGlow, { x: lerp(0.6, -2.2, t), y: 1.8 - Math.sin(t * Math.PI) * 0.05, z: W - 0.06 }, 8);
+      b.sphere(0.018, m.dashGlow, { x: lerp(0.6, -2.2, t), y: B + 0.52 - Math.sin(t * Math.PI) * 0.05, z: W - 0.3 }, 8);
     }
     // The life in it: kettle, mug, paperbacks, a map, boots by the door, a tea towel.
     b.cyl(0.05, 0.055, 0.1, m.chrome, { x: -1.72, y: floor + 1.12, z: 0.52 });
@@ -296,9 +321,9 @@ export function buildVan(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKit {
     b.box(0.02, 0.22, 0.14, m.plate, { x: -1.6, y: floor + 0.86, z: 0.2 });
     // Three postcards, all deliberately off-square: that is the whole trick.
     for (const [x, y, r] of [
-      [-0.9, 1.72, 0.06],
-      [-0.66, 1.66, -0.09],
-      [-1.14, 1.63, 0.03],
+      [-0.9, 1.99, 0.06],
+      [-0.66, 1.93, -0.09],
+      [-1.14, 1.9, 0.03],
     ] as const) {
       b.box(0.005, 0.11, 0.08, m.paper, { x, y, z: W - 0.055, rx: r });
     }
