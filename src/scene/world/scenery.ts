@@ -133,14 +133,16 @@ export function createScenery(seed = 7): SceneryRig {
   ]);
   const pole = merge([
     place(new THREE.CylinderGeometry(0.05, 0.07, 5.2, 8), 0, 2.6, 0),
-    place(new THREE.CylinderGeometry(0.04, 0.04, 1.2, 6).rotateZ(Math.PI / 2), 0, 5.1, -0.6).rotateY(Math.PI / 2),
+    place(new THREE.CylinderGeometry(0.04, 0.04, 0.5, 6).rotateZ(Math.PI / 2), 0, 5.1, -0.25).rotateY(Math.PI / 2),
   ]);
-  const lamp = place(new THREE.BoxGeometry(0.5, 0.14, 0.24), 0, 5.12, -1.15);
+  // The head sits over the verge, not over the road: at the van's wider framing a long
+  // cantilever drags the fixture into shot.
+  const lamp = place(new THREE.BoxGeometry(0.5, 0.14, 0.24), 0, 5.12, -0.45);
 
   const archetypes: Archetype[] = [
     { name: 'streetlight', count: S.STREETLIGHTS, side: 'far', band: [0.9, 1.0], scale: [1, 1], geometry: pole, material: poleMat, spacing: S.STREETLIGHT_SPACING, castShadow: false },
     { name: 'lamp', count: S.STREETLIGHTS, side: 'far', band: [0.9, 1.0], scale: [1, 1], geometry: lamp, material: lampMat, spacing: S.STREETLIGHT_SPACING, castShadow: false },
-    { name: 'pine', count: S.PINES, side: 'far', band: [1.4, 2.3], scale: [0.7, 1.25], geometry: pine, material: vertexMat, castShadow: true },
+    { name: 'pine', count: S.PINES, side: 'far', band: [1.4, 2.3], scale: [0.7, 1.05], geometry: pine, material: vertexMat, castShadow: true },
     { name: 'building', count: S.BUILDINGS, side: 'far', band: [1.3, 1.6], scale: [0.9, 1.1], geometry: building, material: vertexMat, castShadow: false },
     { name: 'bush', count: S.BUSHES, side: 'both', band: [0.7, 2.2], scale: [0.6, 1.3], geometry: bush, material: vertexMat, castShadow: true },
     { name: 'guardrail', count: S.GUARDRAILS, side: 'near', band: [0.35, 0.4], scale: [1, 1], geometry: guardrail, material: vertexMat, castShadow: false },
@@ -216,7 +218,7 @@ export function createScenery(seed = 7): SceneryRig {
       let n = 0;
       for (const inst of lampField.instances) {
         if (n >= out.length) break;
-        out[n]!.set(inst.x, 5.12, inst.z - 1.15);
+        out[n]!.set(inst.x, 5.12, inst.z - 0.45);
         n++;
       }
       return n;

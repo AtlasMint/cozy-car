@@ -61,7 +61,8 @@ export const CAMERA = {
 } as const;
 
 export const WORLD = {
-  SLAB_BACK: -8,
+  /** The van's wider frame shows the plinth's rear edge at −8, so the slab runs further back. */
+  SLAB_BACK: -12,
   SLAB_FRONT: 30,
   SLAB_WIDTH: 10,
   SLAB_FAR_WIDTH: 8,
@@ -74,10 +75,11 @@ export const WORLD = {
   ROAD_TEXTURE_PX: 512,
   SCENERY: {
     /** Instances wrap forward by FIELD_LENGTH once they pass RECYCLE_BEHIND. */
-    RECYCLE_BEHIND: -9,
-    FIELD_LENGTH: 40,
+    RECYCLE_BEHIND: -13,
+    FIELD_LENGTH: 44,
     STREETLIGHTS: 2,
-    STREETLIGHT_SPACING: 35,
+    /** count × spacing must equal FIELD_LENGTH, or the lamps strobe as the field wraps. */
+    STREETLIGHT_SPACING: 22,
     STREETLIGHT_PHASE: 6,
     PINES: 26,
     BUSHES: 40,
