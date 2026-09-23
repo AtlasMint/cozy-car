@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { floorExposure, seeThrough, SEE_THROUGH_BELOW, VEHICLES, VEHICLE_ORDER } from '../../core/vehicles';
-import { castsShadow, createMaterials, renderOrderFor } from '../../scene/car/parts';
+import { floorExposure, seeThrough, SEE_THROUGH_BELOW, VEHICLES, VEHICLE_ORDER, type VehicleSpec } from '../../core/vehicles';
+import { Builder, createMaterials } from '../../scene/car/parts';
 
 describe('floor exposure', () => {
   test('a point on the floor clears the near wall exactly when y + z + wallZ > wallTopY', () => {
@@ -35,21 +35,45 @@ describe('floor exposure', () => {
   });
 });
 
-describe('the see-through wall material', () => {
-  test('every vehicle carries it, so a tall body adds no material key', () => {
-    for (const id of VEHICLE_ORDER) {
-      const m = createMaterials(VEHICLES[id].paint);
-      expect(m.ghost.transparent).toBe(true);
-      expect(m.ghost.opacity).toBeLessThan(1);
-      // It is the body's own colour: a wall you can see through, not a pane of glass.
-      expect(m.ghost.color.getHexString()).toBe(m.body.color.getHexString());
-      m.dispose();
-    }
+describe('the camper opens rather than fades', () => {
+  const build = (spec: VehicleSpec) => {
+    const m = createMaterials(spec.paint);
+    const b = new Builder(m);
+    const kit = spec.build(b, m, spec);
+    const built = b.finish('car');
+    const names = kit.panes.map((p) => p.name);
+    built.dispose();
+    m.dispose();
+    return names;
+  };
+
+  test('the walls the camera looks through are not built at all', () => {
+    const names = build(VEHICLES.van);
+    // Absent, not translucent: no near-side glass, because there is no near side to set it in,
+    // and no rear window, because there is no rear panel to cut it out of.
+    expect(names.some((n) => n.endsWith('Near'))).toBe(false);
+    expect(names).not.toContain('rear');
+    // The cab keeps its screen, and the far side keeps both windows.
+    expect(names).toContain('windscreen');
+    expect(names.filter((n) => n.endsWith('Far')).length).toBe(2);
   });
 
-  test('it casts no shadow and composites after the cabin behind it', () => {
-    expect(castsShadow('ghost')).toBe(false);
-    expect(renderOrderFor('ghost')).toBeGreaterThan(renderOrderFor('body'));
-    expect(renderOrderFor('body')).toBe(0);
+  test('a body short enough to look into keeps every wall', () => {
+    // Drop the camper's roof back under the threshold; the walls and their glass must return.
+    const short = { ...VEHICLES.van, dims: { ...VEHICLES.van.dims, wallTopY: 1.9 } };
+    expect(seeThrough(short)).toBe(false);
+    const names = build(short);
+    expect(names).toContain('rear');
+    expect(names.filter((n) => n.endsWith('Near')).length).toBe(2);
+  });
+
+  test('a removed side panel still owes its wheels an arch', () => {
+    // Wheel centres sit at y = wheelRadius, so a wheel reaches 2r — above the cabin floor on
+    // every vehicle. That is why the near side keeps a wing and a lip: without them the wheel
+    // rises into the room.
+    for (const id of VEHICLE_ORDER) {
+      const d = VEHICLES[id].dims;
+      expect(2 * d.wheelRadius).toBeGreaterThan(d.floorTopY);
+    }
   });
 });
