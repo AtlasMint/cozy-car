@@ -8,6 +8,7 @@ import type { VolumeKey } from '../core/store';
  *
  * Everything audible goes through a bus, including the one-shots — a thunderclap wired straight
  * to the master would ignore the weather fader, which is the one mistake this layout invites.
+ * A limiter sits last, because the buses can and do sum past 1 in heavy weather.
  * Two things cannot join the graph at all: the Spotify embed, which is a cross-origin iframe,
  * and the live radio stream, whose element would be silenced by createMediaElementSource
  * without CORS on the stream server. The radio carries its own gain instead; see ui/tuner.ts.
@@ -34,6 +35,8 @@ export const BUS_LABEL: Readonly<Record<Bus, string>> = {
 export interface Mixer {
   readonly context: AudioContext | null;
   readonly master: GainNode | null;
+  /** Last in the chain. Exposed like `master` is, so its gain reduction can be measured. */
+  readonly limiter: DynamicsCompressorNode | null;
   /** Where a layer or a one-shot connects. Null until the context exists. */
   bus(name: Bus): GainNode | null;
   /** The user's 0..1 setting for a group, multiplied by that bus's constant. */
@@ -54,6 +57,7 @@ export function createMixer(): Mixer {
   let context: AudioContext | null = null;
   let master: GainNode | null = null;
   let duckGain: GainNode | null = null;
+  let limiter: DynamicsCompressorNode | null = null;
   let volume: number = AUDIO.DEFAULT_VOLUME;
   let disposed = false;
   const buses = new Map<Bus, GainNode>();
@@ -70,7 +74,18 @@ export function createMixer(): Mixer {
     master.gain.value = volume;
     duckGain = context.createGain();
     duckGain.gain.value = 1;
-    master.connect(duckGain).connect(context.destination);
+    // A limiter, because nothing else stops the buses summing past 1. Measured at the master
+    // tap, the camper in Focus under thunder reaches 0.92 at the default volume and about 1.3
+    // with the slider up, and a tank firing takes it further — all of which was clipping at the
+    // destination. A hard knee at -3 dB with a fast attack only engages on those peaks and
+    // leaves everything quieter than them untouched.
+    limiter = context.createDynamicsCompressor();
+    limiter.threshold.value = -3;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.002;
+    limiter.release.value = 0.15;
+    master.connect(duckGain).connect(limiter).connect(context.destination);
     for (const name of BUS_NAMES) {
       const g = context.createGain();
       g.gain.value = AUDIO.BUSES[name] * busLevels[name];
@@ -92,6 +107,9 @@ export function createMixer(): Mixer {
     },
     get master() {
       return master;
+    },
+    get limiter() {
+      return limiter;
     },
     bus(name) {
       ensure();
@@ -143,6 +161,7 @@ export function createMixer(): Mixer {
       void context?.close();
       context = null;
       master = null;
+      limiter = null;
       buses.clear();
     },
   };
