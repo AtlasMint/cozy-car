@@ -279,6 +279,32 @@ export const AUDIO = {
    * 0.55 is the headline: the sky is no longer allowed to be as loud as the car you are in.
    */
   BUSES: { engine: 1, weather: 0.55, ambience: 0.8, music: 0.9 },
+  /** The rain texture. `density` is drops per second — the drizzle/downpour axis. */
+  RAIN_SYNTH: {
+    seconds: 4,
+    density: { light: 900, heavy: 5200 },
+    /** Impact decay time, seconds: how long one drop rings. */
+    tau: [0.0015, 0.006] as const,
+    /** Impact resonance, Hz, drawn log-uniform across it. */
+    freq: [1200, 8000] as const,
+    /** Normalised level of the generated buffer. */
+    rms: 0.18,
+    /** The far-field bed: `dry` is how much stays unfiltered above `cutoff`. */
+    bed: { cutoff: 900, dry: 0.22, gain: 0.35 },
+    /** Two decorrelated copies per texture; one alone lets you hear the loop. */
+    rates: [0.96, 1.05] as const,
+    /**
+     * Trim on the whole rain layer. Two uncorrelated copies sum to √2 of one, and the texture
+     * is normalised rather than trimmed the way the old filtered-noise chain was, so without
+     * this the rewrite arrives 6 dB hotter and quietly undoes the level fix above. Set by
+     * measuring the 2–8 kHz band against the previous build.
+     */
+    gain: 0.5,
+    /** The lowpass opens with intensity, so a downpour is brighter as well as louder. */
+    tone: { from: 3800, to: 11000 },
+    /** Heavy rain gains a low bed no amount of hiss can stand in for. */
+    rumble: { freq: 180, gain: 0.5, from: 0.55 },
+  },
 } as const;
 
 export const INTERACTION = {

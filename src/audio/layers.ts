@@ -1,7 +1,8 @@
 import { AUDIO, MOTION, SPEED } from '../core/constants';
 import { HATCHBACK, type EngineProfile } from '../core/vehicles';
 import { createEngineVoice, type EngineVoice } from './engineVoice';
-import { damp } from '../util/math';
+import { clamp01, damp } from '../util/math';
+import { rainBuffer } from './rain';
 import type { Bus, Mixer } from './mixer';
 
 /**
@@ -35,7 +36,7 @@ export interface Layers {
 interface Layer {
   gain: GainNode;
   source: AudioBufferSourceNode | null;
-  synth: { nodes: AudioNode[]; setRate?: (r: number) => void; setEngine?: (rpm: number, load: number) => void; dispose?: () => void } | null;
+  synth: { nodes: AudioNode[]; setRate?: (r: number) => void; setEngine?: (rpm: number, load: number) => void; setRain?: (intensity: number) => void; dispose?: () => void } | null;
   level: number;
 }
 
@@ -153,20 +154,63 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
         return { nodes };
       }
       case 'rain': {
-        const src = loopNoise(ctx, false);
-        const bp = ctx.createBiquadFilter();
-        bp.type = 'bandpass';
-        bp.frequency.value = 3200;
-        bp.Q.value = 0.5;
-        const hp = ctx.createBiquadFilter();
-        hp.type = 'highpass';
-        hp.frequency.value = 900;
-        const g = ctx.createGain();
-        g.gain.value = 0.35;
-        src.connect(hp).connect(bp).connect(g).connect(out);
-        src.start();
-        nodes.push(src, bp, hp, g);
-        return { nodes };
+        // Two textures — a drizzle and a downpour — crossfaded by intensity, because what
+        // separates them is how many drops you can pick out, not how loud they are. See rain.ts.
+        const R = AUDIO.RAIN_SYNTH;
+        const tone = ctx.createBiquadFilter();
+        tone.type = 'lowpass';
+        tone.frequency.value = R.tone.from;
+        tone.connect(out);
+
+        const texture = (density: number, seed: number) => {
+          const data = rainBuffer(ctx.sampleRate, R.seconds, density, seed);
+          const buffer = ctx.createBuffer(1, data.length, ctx.sampleRate);
+          buffer.copyToChannel(data, 0);
+          const g = ctx.createGain();
+          g.connect(tone);
+          nodes.push(g);
+          // Two copies at slightly different rates, started at unrelated offsets. One alone
+          // and you hear the four seconds come round.
+          for (const rate of R.rates) {
+            const src = ctx.createBufferSource();
+            src.buffer = buffer;
+            src.loop = true;
+            src.playbackRate.value = rate;
+            src.connect(g);
+            src.start(ctx.currentTime, Math.random() * R.seconds);
+            nodes.push(src);
+          }
+          return g;
+        };
+        const light = texture(R.density.light, 0x5ea1);
+        const heavy = texture(R.density.heavy, 0x9c0d);
+        light.gain.value = R.gain;
+        heavy.gain.value = 0;
+
+        // The low bed under heavy rain, which no amount of hiss stands in for.
+        const rumble = loopNoise(ctx, true);
+        const rumbleLp = ctx.createBiquadFilter();
+        rumbleLp.type = 'lowpass';
+        rumbleLp.frequency.value = R.rumble.freq;
+        const rumbleGain = ctx.createGain();
+        rumbleGain.gain.value = 0;
+        rumble.connect(rumbleLp).connect(rumbleGain).connect(out);
+        rumble.start();
+        nodes.push(rumble, rumbleLp, rumbleGain, tone);
+
+        return {
+          nodes,
+          setRain(k) {
+            const t = ctx.currentTime;
+            const mix = clamp01((k - 0.2) / 0.65);
+            // Equal power, so the crossfade does not dip or bulge in the middle.
+            light.gain.setTargetAtTime(Math.cos((mix * Math.PI) / 2) * R.gain, t, 0.3);
+            heavy.gain.setTargetAtTime(Math.sin((mix * Math.PI) / 2) * R.gain, t, 0.3);
+            tone.frequency.setTargetAtTime(R.tone.from + (R.tone.to - R.tone.from) * k, t, 0.3);
+            const deep = clamp01((k - R.rumble.from) / (1 - R.rumble.from));
+            rumbleGain.gain.setTargetAtTime(deep * R.rumble.gain, t, 0.4);
+          },
+        };
       }
       case 'wind': {
         const src = loopNoise(ctx, false);
@@ -238,6 +282,7 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
       setLevel('engine', L.engine * profile.gain.engine * d.engine * (0.8 + 0.2 * d.blend), dt);
       setLevel('roadNoise', L.roadNoise * profile.gain.road * speedK * d.engine, dt);
       setLevel('rain', L.rain * d.rain, dt);
+      layers.get('rain')?.synth?.setRain?.(d.rain);
       setLevel('wind', L.wind * profile.gain.wind * (Math.min(1, d.windKmh / 40) * 0.6 + 0.5 * speedK), dt);
       setLevel('ambience', L.ambience * (1 - 0.5 * d.night), dt);
 
