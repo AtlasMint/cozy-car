@@ -344,12 +344,18 @@ export const INTERACTION = {
 } as const;
 
 export const SPOTIFY = {
-  /** Built-in playlists mapped to the radio's six preset buttons (first four used). */
+  /**
+   * Built-in playlists mapped to the radio's six preset buttons (first four used).
+   *
+   * Every id here was fetched and its name read back, because an embed answers 200 with an
+   * error page for a dead one — a real playlist comes back around 150 kB, a dead one about 6.
+   * That check is also what found "Night drive" pointing at a playlist called Chill Pop.
+   */
   PRESETS: [
-    { label: 'Lo-fi beats', type: 'playlist', id: '37i9dQZF1DWWQRwui0ExPn' },
+    { label: 'Saxophone jazz', type: 'playlist', id: '6HhLjsFt1JywDYIbnN7ghQ' },
     { label: 'Peaceful piano', type: 'playlist', id: '37i9dQZF1DX4sWSpwq3LiO' },
     { label: 'Jazz in the background', type: 'playlist', id: '37i9dQZF1DWV7EzJMK2FUI' },
-    { label: 'Night drive', type: 'playlist', id: '37i9dQZF1DX0MLFaUdXnjA' },
+    { label: 'Chill pop', type: 'playlist', id: '37i9dQZF1DX0MLFaUdXnjA' },
   ],
   STORAGE_KEY: 'shotgun.spotify.v1',
 } as const;
