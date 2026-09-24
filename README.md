@@ -50,10 +50,35 @@ Conditions come from Open-Meteo for the browser's location, falling back to Kual
 location is not shared. Click the weather badge to search for any town through Open-Meteo's
 geocoding API; the pick is remembered and used until you choose "Use my location".
 
+## Controls
+
+The bottom-right cluster is three controls and two **More** menus. The dots beside the volume
+slider open the balance — one fader per group, Engine, Weather, Ambience and Music — while the
+slider itself stays the output level and the speaker mutes everything. The dots at the end of the
+row hold Reduce motion, Low quality and the keyboard shortcuts. Everything interactive carries a
+tooltip, on hover after a moment and on keyboard focus immediately.
+
 ## Audio
 
 Nothing ships under `public/audio/`, so the synthesized layers **are** the product rather than
 a fallback; a file dropped in there replaces its layer instead.
+
+Everything audible runs through one of four buses — engine, weather, ambience, music — between
+the layers and the master fader, including the one-shots: a thunderclap wired straight to the
+master would ignore the weather fader. Two things cannot join the graph. The Spotify embed is a
+cross-origin iframe, so its volume is unreachable from our code at all; the live radio stream
+would be silenced by `createMediaElementSource` without CORS on the stream server, so it carries
+its own gain instead.
+
+Rain is generated rather than filtered ([src/audio/rain.ts](src/audio/rain.ts)). Real rain is a
+broadband bed from the drops too far off to resolve plus thousands of discrete impacts near
+enough to hear one at a time, and only the bed is reachable with a noise generator and two
+filters. The texture is written out sample by sample with one decaying resonant burst per drop
+from a seeded PRNG, so it is deterministic and testable; drops wrap past the end with a modulo
+and the bed is cross-faded into itself, so it loops with nothing to click on. Density lives in
+the buffer and brightness in a lowpass — past a few hundred drops a second the spectrum stops
+moving, because the texture has become the impacts, and what keeps changing is peakiness. Wind is
+three resonances swept at rates sharing no common factor, under a damped random walk for gusts.
 
 The engine is a combustion pulse train through fixed resonators
 ([src/audio/engineVoice.ts](src/audio/engineVoice.ts)). A four-stroke's cycle is two crank
@@ -67,12 +92,25 @@ the diesel knock band. Load is separate from rpm, so Chill and Focus differ in t
 The other layers are road hum, rain, wind and an outdoor room tone, plus one-shot thunder and
 the starter crank. See [public/audio/README.md](public/audio/README.md) for the optional files.
 
-## Spotify
+## The radio
 
-Clicking the radio opens a panel with the official Spotify embed. Four built-in playlists map
-to the radio's presets; any Spotify link can be pasted. **Known limitation:** the embed plays
-30-second previews for logged-out users; logged-in Premium users get full tracks. Full
-playback needs OAuth and the Web Playback SDK, which is out of scope for v1.
+Clicking the radio opens a panel with three ways to fill the cabin.
+
+**Spotify.** Four preset playlists, or paste a link to any song, album or playlist — full URLs,
+`intl-` prefixes, `?si=` suffixes and bare `spotify:` URIs all work. `spotify.link` short links
+are resolved where possible and explained where not. **Known limitation:** the embed plays
+30-second previews for logged-out users; full playback needs OAuth and the Web Playback SDK,
+which is out of scope. Its volume lives inside the player and cannot be reached from here.
+
+**A live station**, from [Radio Browser](https://api.radio-browser.info/) — free, no key. One geo
+query returns the stations near you and, through the countries they report, says which country
+you are in; the national list fills out the band behind them. Stations that a browser cannot play
+are filtered out before you ever hear the silence: http is blocked as mixed content, `.m3u8`
+needs Media Source Extensions outside Safari, `.pls` and `.m3u` are text files listing streams.
+Arrow keys or the chevrons move the dial, and the station is remembered.
+
+**The Music slider**, which is the music bus, shared with the sound menu. Spotify and the tuner
+cannot both play; starting one stops the other.
 
 ## Where the numbers live
 
@@ -88,7 +126,8 @@ Every tunable is in [src/core/constants.ts](src/core/constants.ts), grouped by s
 | `SPEED` | Focus cruising speed and its spring |
 | `WEATHER` | Fallback location, timeouts, cache TTL |
 | `WEATHER_FX` | Fog per kind, precipitation counts/shape, glass, lightning, headlights, streetlights, per-kind sky and light looks, the car exclusion box |
-| `AUDIO` | Absolute mix levels and the duck factor; per-vehicle gains live on the spec |
+| `AUDIO` | Per-layer levels, the four bus levels, the duck factor, and the rain and wind synths; per-vehicle gains live on the spec |
+| `RADIO` | Radio Browser endpoint, playable codecs, search radius and band size |
 | `INTERACTION`, `SPOTIFY` | Hover rate, push-in and swap-fade timing, zoom, preset playlists |
 | `PALETTE` | Every colour |
 
@@ -103,9 +142,11 @@ src/
   motion/      engineRig (vibration model, driven by a per-vehicle profile), spring
   weather/     openMeteo, wmo (pure mapping), director, effects/
   interaction/ interactables registry, raycast, focusCamera
-  audio/       mixer, layers, engineVoice (the pulse-train engine)
-  ui/          overlay, curtain (the swap fade), startScreen, modeToggle, vehiclePicker,
-               weatherBadge, volume (mute + slider), locationPicker, spotifyPanel, debugStats
+  audio/       mixer (four buses), layers, engineVoice (the pulse-train engine),
+               rain (the generated texture), stations + tuner (live radio)
+  ui/          overlay, curtain (the swap fade), menu (the More popovers), tooltip,
+               startScreen, modeToggle, vehiclePicker, weatherBadge, volume (mute, slider
+               and the balance menu), settingsMenu, locationPicker, spotifyPanel, debugStats
   util/        math, tests/
 ```
 
@@ -187,5 +228,6 @@ Nothing else needs to change.
 
 See [docs/PLAN-car.md](docs/PLAN-car.md) for the original implementation plan and
 [docs/archive/](docs/archive/) for the version logs (`v0.1` cutaway, `v0.2` open roof, `v0.3`
-three vehicles, `v0.4` full-height camper), and [docs/PLAN-cars.md](docs/PLAN-cars.md) for the
-plan v0.3 followed.
+three vehicles, `v0.4` full-height camper, `v0.5` controls and mix), and
+[docs/PLAN-cars.md](docs/PLAN-cars.md) and [docs/PLAN-ui.md](docs/PLAN-ui.md) for the plans v0.3
+and v0.5 followed.
