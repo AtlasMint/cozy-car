@@ -22,41 +22,82 @@ const normalise = (b: Float32Array<ArrayBuffer>, target: number): Float32Array<A
 };
 
 /**
+ * Flexural mode ratios of a free-free steel bar. A track link is a chunky irregular casting
+ * rather than a bar, but the principle is what matters: these are not harmonics. Inharmonic
+ * modes are why struck steel *rings* instead of sounding a note.
+ */
+const BAR_MODES = [1, 2.756, 5.404, 8.933, 13.344] as const;
+
+/**
  * Track clatter: what a tracked vehicle's running gear sounds like when it moves.
  *
- * Each link engaging a sprocket or slapping a road wheel is a metallic impact — two decaying
- * partials in an inharmonic ratio, which is what makes steel ring rather than hum, over a tiny
- * broadband click. Impacts are placed at `rate` per second by a seeded PRNG and wrap past the
- * end with a modulo, so the buffer loops seamlessly and its playback rate can be driven by
- * speed to make the clatter quicken.
+ * Each link engaging a sprocket or slapping a road wheel is a struck lump of steel, so each one
+ * is modal synthesis: a handful of inharmonic partials over a low thump for the mass of the
+ * link, under a one-millisecond click for the strike itself.
+ *
+ * The thing that decides whether this reads as steel or as a woodblock is not the frequencies —
+ * it is that **the higher modes decay faster than the lower ones**. Wood and bone shed every
+ * mode at once, which is a short even clack; metal holds its fundamental long after the bright
+ * partials have gone, which is a ring. The first version of this had two partials sharing one
+ * decay over 24-32 ms, and sounded exactly like bones for exactly that reason.
+ *
+ * Impacts are placed at `rate` per second by a seeded PRNG and wrap past the end with a modulo,
+ * so the buffer loops seamlessly and its playback rate can be driven by speed.
  */
 export function trackBuffer(sampleRate: number, seconds: number, rate: number, seed: number): Float32Array<ArrayBuffer> {
   const len = Math.max(1, Math.floor(sampleRate * seconds));
   const out = new Float32Array(new ArrayBuffer(len * 4));
   const rng = mulberry32(seed);
   const hits = Math.max(0, Math.round(rate * seconds));
+  const nyquist = sampleRate * 0.45;
+  // Index 0 is the thump and decays slowest; the modes follow in ascending order, so a partial
+  // that has died can be dropped off the end and the inner loop shrinks as the strike rings out.
+  const w = new Float64Array(BAR_MODES.length + 1);
+  const phase = new Float64Array(BAR_MODES.length + 1);
+  const env = new Float64Array(BAR_MODES.length + 1);
+  const decay = new Float64Array(BAR_MODES.length + 1);
+
   for (let h = 0; h < hits; h++) {
     const start = Math.floor(rng() * len);
-    // Log-uniform across an octave and a half of steel.
-    const f1 = 520 * Math.pow(2.7, rng());
-    // 2.37 is not a harmonic of anything, which is the point: metal rings inharmonically.
-    const f2 = f1 * 2.37;
-    const tau = 0.008 + rng() * 0.014;
+    const f0 = 1200 * Math.pow(2.6, rng());
+    const tau0 = 0.05 + rng() * 0.075;
     const amp = 0.55 + rng() * 0.45;
-    const w1 = (2 * Math.PI * f1) / sampleRate;
-    const w2 = (2 * Math.PI * f2) / sampleRate;
-    const ph1 = rng() * Math.PI * 2;
-    const ph2 = rng() * Math.PI * 2;
-    const decay = Math.exp(-1 / (tau * sampleRate));
-    const dur = Math.min(len, Math.ceil(6 * tau * sampleRate));
-    let env = amp;
+    // Every link is its own casting, so the ratios stretch a little from one to the next. A
+    // fixed ratio makes every impact the same object struck again.
+    const stretch = 0.93 + rng() * 0.14;
+
+    // The mass of the link landing. Longer than anything above it, and what gives it weight.
+    const thumpTau = tau0 * 1.2;
+    w[0] = (2 * Math.PI * (130 * Math.pow(2, rng()))) / sampleRate;
+    phase[0] = rng() * Math.PI * 2;
+    env[0] = 0.35;
+    decay[0] = Math.exp(-1 / (thumpTau * sampleRate));
+
+    let n = 1;
+    for (let m = 0; m < BAR_MODES.length; m++) {
+      const f = f0 * BAR_MODES[m]! * (m === 0 ? 1 : stretch) * (1 + (rng() - 0.5) * 0.05);
+      if (f > nyquist) break;
+      w[n] = (2 * Math.PI * f) / sampleRate;
+      phase[n] = rng() * Math.PI * 2;
+      env[n] = 1 / Math.pow(m + 1, 0.5);
+      decay[n] = Math.exp(-1 / ((tau0 / (1 + 0.7 * m)) * sampleRate));
+      n++;
+    }
+
+    // 5 time constants of the slowest partial: past that it is 40 dB down and inaudible, and
+    // the tail is most of what this costs to generate.
+    const dur = Math.min(len, Math.ceil(5 * thumpTau * sampleRate));
+    const clickLen = Math.floor(sampleRate * 0.0012);
+    let alive = n;
     for (let i = 0; i < dur; i++) {
-      // The click is only the first millisecond; after that it is all ring.
-      const click = i < sampleRate * 0.001 ? 0.5 * (rng() * 2 - 1) : 0;
-      const s = 0.62 * Math.sin(w1 * i + ph1) + 0.38 * Math.sin(w2 * i + ph2) + click;
+      let v = i < clickLen ? 0.8 * (rng() * 2 - 1) : 0;
+      for (let k = 0; k < alive; k++) {
+        v += env[k]! * Math.sin(w[k]! * i + phase[k]!);
+        env[k] = env[k]! * decay[k]!;
+      }
       const j = (start + i) % len;
-      out[j] = out[j]! + env * s;
-      env *= decay;
+      out[j] = out[j]! + amp * v;
+      while (alive > 1 && env[alive - 1]! < 1e-4) alive--;
     }
   }
   return normalise(out, 0.18);

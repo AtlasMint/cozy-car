@@ -169,11 +169,18 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
         clatter.buffer = buffer;
         clatter.loop = true;
         clatter.playbackRate.value = 0.2;
+        // Only enough to keep the rumble out. A bandpass at 1400 was removing the top two
+        // octaves, which is exactly where steel lives — the texture's own spectrum is the point.
         const band = ctx.createBiquadFilter();
-        band.type = 'bandpass';
-        band.frequency.value = 1400;
-        band.Q.value = 0.5;
-        clatter.connect(band).connect(out);
+        band.type = 'highpass';
+        band.frequency.value = 130;
+        band.Q.value = 0.7;
+        const presence = ctx.createBiquadFilter();
+        presence.type = 'peaking';
+        presence.frequency.value = 3200;
+        presence.Q.value = 0.9;
+        presence.gain.value = 4;
+        clatter.connect(band).connect(presence).connect(out);
         clatter.start(ctx.currentTime, Math.random() * 4);
 
         const hiss = loopNoise(ctx, false);
@@ -193,7 +200,7 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
         lfo.start();
         hiss.connect(squeal).connect(squealGain).connect(out);
         hiss.start();
-        nodes.push(clatter, band, hiss, squeal, squealGain, lfo, lfoDepth);
+        nodes.push(clatter, band, presence, hiss, squeal, squealGain, lfo, lfoDepth);
         return {
           nodes,
           setRoad(speed) {

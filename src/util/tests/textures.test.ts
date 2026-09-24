@@ -52,6 +52,55 @@ describe('track clatter', () => {
     expect(Math.abs(t[0]! - t[t.length - 1]!)).toBeLessThanOrEqual(steps[Math.floor(steps.length * 0.999)]!);
   });
 
+  test('the higher partials die before the lower ones', () => {
+    // This is the whole difference between steel and bone. Wood sheds every mode at once, which
+    // is a short even clack; metal holds its fundamental long after the bright partials have
+    // gone. An earlier version shared one decay across two partials and sounded like bones.
+    // Measured across seeds the bright/dull ratio runs 1.4 to 2.0; the threshold sits under the
+    // worst of them rather than on top of the best.
+    for (const seed of [1, 2, 3, 7, 11]) {
+      const one = trackBuffer(SR, 2, 0.5, seed);
+      let peakAt = 0;
+      let peak = 0;
+      for (let i = 0; i < one.length; i++) if (Math.abs(one[i]!) > peak) { peak = Math.abs(one[i]!); peakAt = i; }
+      // Run the split filter from the start so it is warm by the time either window is reached.
+      const k = 1 - Math.exp((-2 * Math.PI * 2000) / SR);
+      let lp = 0;
+      let earlyHi = 0, earlyAll = 0, lateHi = 0, lateAll = 0;
+      const e0 = peakAt, e1 = peakAt + Math.floor(SR * 0.015);
+      const l0 = peakAt + Math.floor(SR * 0.09), l1 = peakAt + Math.floor(SR * 0.15);
+      for (let i = 0; i < Math.min(one.length, l1); i++) {
+        const v = one[i]!;
+        lp += k * (v - lp);
+        const h = v - lp;
+        if (i >= e0 && i < e1) { earlyHi += h * h; earlyAll += v * v; }
+        if (i >= l0 && i < l1) { lateHi += h * h; lateAll += v * v; }
+      }
+      const early = earlyHi / Math.max(1e-12, earlyAll);
+      const late = lateHi / Math.max(1e-12, lateAll);
+      expect(early).toBeGreaterThan(late * 1.25);
+    }
+  });
+
+  test('a strike rings rather than clacks', () => {
+    // Peak to -20 dB. Struck steel holds on for a good fraction of a second; the version that
+    // sounded like bones managed 24 to 32 ms.
+    for (const seed of [1, 2, 3]) {
+      const one = trackBuffer(SR, 2, 0.5, seed);
+      let peakAt = 0;
+      let peak = 0;
+      for (let i = 0; i < one.length; i++) if (Math.abs(one[i]!) > peak) { peak = Math.abs(one[i]!); peakAt = i; }
+      const win = Math.floor(SR * 0.004);
+      let decayedAt = -1;
+      for (let i = peakAt; i < one.length - win && decayedAt < 0; i += win) {
+        let m = 0;
+        for (let j = i; j < i + win; j++) m = Math.max(m, Math.abs(one[j]!));
+        if (m < peak * 0.1) decayedAt = i;
+      }
+      expect(decayedAt).toBeGreaterThan(peakAt + SR * 0.1);
+    }
+  });
+
   test('the same seed gives the same clatter', () => {
     const a = trackBuffer(SR, 0.5, 30, 42);
     const b = trackBuffer(SR, 0.5, 30, 42);
