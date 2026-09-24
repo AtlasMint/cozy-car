@@ -30,9 +30,17 @@ export interface AppState {
   weatherStatus: 'idle' | 'loading' | 'ready' | 'error';
   focusedObject: string | null; // Interactable id, e.g. 'radio'
   masterVolume: number; // 0..1
+  /** Per-group levels, 0..1, multiplied into each bus's constant. See audio/mixer.ts. */
+  volumeEngine: number;
+  volumeWeather: number;
+  volumeAmbience: number;
+  volumeMusic: number;
   reducedMotion: boolean;
   quality: 'low' | 'high';
 }
+
+/** The state keys holding a bus level. Every one of them is a number in 0..1. */
+export type VolumeKey = 'volumeEngine' | 'volumeWeather' | 'volumeAmbience' | 'volumeMusic';
 
 export interface Store {
   get(): Readonly<AppState>;
@@ -87,6 +95,11 @@ export const defaultState: AppState = {
   weatherStatus: 'idle',
   focusedObject: null,
   masterVolume: 0.7,
+  // Groups start wide open; the bus constants carry the mix, these carry the user's opinion.
+  volumeEngine: 1,
+  volumeWeather: 1,
+  volumeAmbience: 1,
+  volumeMusic: 1,
   reducedMotion: false,
   quality: 'high',
 };

@@ -1,4 +1,5 @@
 import { AUDIO } from '../core/constants';
+import type { VolumeKey } from '../core/store';
 
 /**
  * One AudioContext, four group buses, a master gain, resume() on the start gesture, and a
@@ -14,6 +15,21 @@ import { AUDIO } from '../core/constants';
 export type Bus = 'engine' | 'weather' | 'ambience' | 'music';
 
 export const BUS_NAMES: readonly Bus[] = ['engine', 'weather', 'ambience', 'music'];
+
+/** Where each bus's user level lives in the store, and what to call it on screen. */
+export const BUS_STORE_KEY: Readonly<Record<Bus, VolumeKey>> = {
+  engine: 'volumeEngine',
+  weather: 'volumeWeather',
+  ambience: 'volumeAmbience',
+  music: 'volumeMusic',
+};
+
+export const BUS_LABEL: Readonly<Record<Bus, string>> = {
+  engine: 'Engine',
+  weather: 'Weather',
+  ambience: 'Ambience',
+  music: 'Music',
+};
 
 export interface Mixer {
   readonly context: AudioContext | null;

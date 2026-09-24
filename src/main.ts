@@ -20,7 +20,7 @@ import { createVehiclePicker, parseVehicleHash } from './ui/vehiclePicker';
 import { createWeatherBadge } from './ui/weatherBadge';
 import { createWeatherSource } from './weather/openMeteo';
 import { createWeatherDirector } from './weather/director';
-import { createMixer } from './audio/mixer';
+import { BUS_NAMES, BUS_STORE_KEY, createMixer } from './audio/mixer';
 import { createLayers } from './audio/layers';
 import { createVolumeControl } from './ui/volume';
 import { createRegistry } from './interaction/interactables';
@@ -41,6 +41,10 @@ const store = createStore({
   reducedMotion: prefs.reducedMotion ?? window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   mode: prefs.mode ?? defaultState.mode,
   masterVolume: prefs.masterVolume ?? defaultState.masterVolume,
+  volumeEngine: prefs.volumeEngine ?? defaultState.volumeEngine,
+  volumeWeather: prefs.volumeWeather ?? defaultState.volumeWeather,
+  volumeAmbience: prefs.volumeAmbience ?? defaultState.volumeAmbience,
+  volumeMusic: prefs.volumeMusic ?? defaultState.volumeMusic,
   quality: prefs.quality ?? (coarsePointer ? 'low' : 'high'),
 });
 bindPersistence(store);
@@ -84,6 +88,13 @@ const mixer = createMixer();
 const layers = createLayers(mixer, bootSpec.audio);
 mixer.setVolume(store.get().masterVolume);
 store.subscribe('masterVolume', (v) => mixer.setVolume(v));
+// Group levels. The buses do not exist until the start gesture creates the context, so the
+// mixer holds these until then rather than dropping a preference restored at boot.
+for (const b of BUS_NAMES) {
+  const key = BUS_STORE_KEY[b];
+  mixer.setBusVolume(b, store.get()[key]);
+  store.subscribe(key, (v) => mixer.setBusVolume(b, v));
+}
 director.onThunder((strength) => layers.thunder(strength));
 
 store.subscribe('engineOn', (on) => {
