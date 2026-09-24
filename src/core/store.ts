@@ -1,5 +1,21 @@
 export type Mode = 'chill' | 'focus';
-export type VehicleId = 'hatchback' | 'van' | 'sports';
+export type VehicleId = 'hatchback' | 'van' | 'sports' | 'tank';
+
+/**
+ * The vehicles the picker offers, the hash accepts and a preference may hold. Deliberately a
+ * subset of VehicleId: anything outside it exists but has to be asked for by name.
+ *
+ * It is a type as well as a list, so the gates in persist.ts and the hash parser are enforced
+ * by the compiler rather than only by the checks they happen to run.
+ */
+export type ListedVehicleId = Exclude<VehicleId, 'tank'>;
+
+export const LISTED_VEHICLES: readonly ListedVehicleId[] = ['hatchback', 'van', 'sports'];
+
+/** Is this one of the vehicles a stored preference or a URL is allowed to name? */
+export function isListedVehicle(v: unknown): v is ListedVehicleId {
+  return typeof v === 'string' && (LISTED_VEHICLES as readonly string[]).includes(v);
+}
 export type WeatherKind =
   | 'clear'
   | 'cloudy'

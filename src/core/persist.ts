@@ -1,4 +1,4 @@
-import type { AppState, Mode, Store, VehicleId, VolumeKey } from './store';
+import { isListedVehicle, type AppState, type ListedVehicleId, type Mode, type Store, type VolumeKey } from './store';
 
 /**
  * Persists the handful of user preferences under one namespaced localStorage key and
@@ -8,7 +8,7 @@ export const PERSIST_KEY = 'shotgun.prefs.v1';
 
 export interface Prefs {
   mode?: Mode;
-  vehicle?: VehicleId;
+  vehicle?: ListedVehicleId;
   masterVolume?: number;
   volumeEngine?: number;
   volumeWeather?: number;
@@ -33,7 +33,7 @@ export function sanitizePrefs(raw: unknown): Prefs {
   if (!raw || typeof raw !== 'object') return out;
   const r = raw as Record<string, unknown>;
   if (r.mode === 'chill' || r.mode === 'focus') out.mode = r.mode;
-  if (r.vehicle === 'hatchback' || r.vehicle === 'van' || r.vehicle === 'sports') out.vehicle = r.vehicle;
+  if (isListedVehicle(r.vehicle)) out.vehicle = r.vehicle;
   const master = level(r.masterVolume);
   if (master !== undefined) out.masterVolume = master;
   for (const k of VOLUME_KEYS) {
@@ -55,9 +55,17 @@ export function loadPrefs(storage: Pick<Storage, 'getItem'> | null = safeStorage
   }
 }
 
-export function savePrefs(state: Pick<AppState, keyof Prefs>, storage: Pick<Storage, 'setItem'> | null = safeStorage()): void {
+export function savePrefs(state: Pick<AppState, keyof Prefs>, storage: Pick<Storage, 'setItem' | 'getItem'> | null = safeStorage()): void {
   if (!storage) return;
-  const prefs: Prefs = { mode: state.mode, vehicle: state.vehicle, masterVolume: state.masterVolume, reducedMotion: state.reducedMotion, quality: state.quality };
+  const prefs: Prefs = { mode: state.mode, masterVolume: state.masterVolume, reducedMotion: state.reducedMotion, quality: state.quality };
+  // An unlisted vehicle is never written. Dropping the key is not enough — that would still
+  // overwrite the stored choice with nothing — so the last listed one is read back and carried
+  // forward, and reaching an unlisted vehicle costs the user no setting at all.
+  if (isListedVehicle(state.vehicle)) prefs.vehicle = state.vehicle;
+  else {
+    const kept = loadPrefs(storage).vehicle;
+    if (kept) prefs.vehicle = kept;
+  }
   for (const k of VOLUME_KEYS) prefs[k] = state[k];
   try {
     storage.setItem(PERSIST_KEY, JSON.stringify(prefs));

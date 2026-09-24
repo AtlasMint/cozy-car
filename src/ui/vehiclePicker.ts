@@ -1,4 +1,4 @@
-import type { Store, VehicleId } from '../core/store';
+import { isListedVehicle, LISTED_VEHICLES, type ListedVehicleId, type Store, type VehicleId } from '../core/store';
 import { VEHICLES, VEHICLE_ORDER } from '../core/vehicles';
 import { el, type Overlay } from './overlay';
 import { tip } from './tooltip';
@@ -52,15 +52,27 @@ export function createVehiclePicker(overlay: Overlay, store: Store): VehiclePick
   seg.appendChild(status);
   overlay.controls.appendChild(seg);
 
+  // Where V comes back to from a vehicle that has no button.
+  const booted = store.get().vehicle;
+  let lastListed: ListedVehicleId = isListedVehicle(booted) ? booted : LISTED_VEHICLES[0]!;
+
   // V cycles. Same guards as the mode toggle, plus e.repeat — holding the key would otherwise
   // queue a swap per keydown, and a swap is a scene teardown, not a boolean flip.
+  //
+  // T does not cycle. It reaches a vehicle the picker does not offer and the hash will not
+  // accept, and V brings you back to the one you left rather than to the top of the list.
   const onKey = (e: KeyboardEvent) => {
-    if (e.key.toLowerCase() !== 'v' || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+    const key = e.key.toLowerCase();
+    if ((key !== 'v' && key !== 't') || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
     if (seg.getAttribute('aria-busy') === 'true') return;
-    const i = VEHICLE_ORDER.indexOf(store.get().vehicle);
-    const next = VEHICLE_ORDER[(i + 1) % VEHICLE_ORDER.length]!;
+    // Read from the store, not from a cache, so a vehicle picked by clicking a button is
+    // remembered exactly as one picked by pressing a key.
+    const current = store.get().vehicle;
+    if (isListedVehicle(current)) lastListed = current;
+    const next = nextVehicle(key, current, lastListed);
+    if (!next) return;
     store.set({ vehicle: next });
     status.textContent = `Switching to the ${VEHICLES[next].label}`;
   };
@@ -84,9 +96,26 @@ export function createVehiclePicker(overlay: Overlay, store: Store): VehiclePick
   };
 }
 
-/** Boot precedence: #vehicle= beats the stored preference, which beats the hatchback. Pure. */
-export function parseVehicleHash(hash: string): VehicleId | null {
+/**
+ * Which vehicle a key press should switch to, or null to do nothing. Pure, because this is the
+ * whole rule and it is worth being able to state it in one place and check it.
+ *
+ * V cycles the listed vehicles. From a vehicle with no button it does not cycle — it returns
+ * you to the last listed one you were on, which is what "back to the list" has to mean when the
+ * thing you are leaving is not in it. T reaches the unlisted vehicle and is a no-op once there.
+ */
+export function nextVehicle(key: 'v' | 't', current: VehicleId, lastListed: ListedVehicleId): VehicleId | null {
+  if (key === 't') return current === 'tank' ? null : 'tank';
+  if (!isListedVehicle(current)) return lastListed;
+  return VEHICLE_ORDER[(VEHICLE_ORDER.indexOf(current) + 1) % VEHICLE_ORDER.length]!;
+}
+
+/**
+ * Boot precedence: #vehicle= beats the stored preference, which beats the hatchback. Pure.
+ * Only listed vehicles, so the one that is not listed cannot be linked to.
+ */
+export function parseVehicleHash(hash: string): ListedVehicleId | null {
   const m = /(^|[#&])vehicle=([a-zA-Z]+)/.exec(hash);
   const v = m?.[2];
-  return v === 'hatchback' || v === 'van' || v === 'sports' ? v : null;
+  return isListedVehicle(v) ? v : null;
 }

@@ -27,6 +27,7 @@ import { createVolumeControl } from './ui/volume';
 import { createRegistry } from './interaction/interactables';
 import { createRaycast } from './interaction/raycast';
 import { createFocusCamera } from './interaction/focusCamera';
+import { createGunControl } from './ui/gunControl';
 import { createSpotifyPanel } from './ui/spotifyPanel';
 import { kindLabel } from './weather/wmo';
 import * as THREE from 'three';
@@ -129,6 +130,10 @@ const registerRadio = (c: Vehicle, spec: VehicleSpec): (() => void) =>
 let unregisterRadio = registerRadio(car, bootSpec);
 const raycast = createRaycast(canvas, iso, registry, store, overlay.panels, (id) => car.radio.setHover(id === 'radio'));
 createFocusCamera(iso, registry, store);
+// Only one vehicle has a gun; on the other three this registers nothing and listens for a key
+// that will never do anything.
+const gunControl = createGunControl(store, registry, () => layers.gunshot());
+gunControl.setVehicle(car);
 // One stable vector the panel keeps forever; a swap copies the new anchor into it.
 const radioAnchor = new THREE.Vector3().copy(car.radio.face);
 const spotify = createSpotifyPanel(overlay, store, iso, radioAnchor, canvas, weather);
@@ -224,70 +229,85 @@ async function swapVehicle(id: VehicleId): Promise<void> {
   const st = store.get();
   const fade = st.reducedMotion ? INTERACTION.SWAP_FADE_MS / 2 : INTERACTION.SWAP_FADE_MS;
 
-  // Let go of everything that holds the outgoing vehicle.
-  store.set({ focusedObject: null });
-  unregisterRadio();
-  delete car.radio.hitbox.userData.interactableId;
-  raycast.clearHover();
+  try {
+    // Let go of everything that holds the outgoing vehicle.
+    store.set({ focusedObject: null });
+    unregisterRadio();
+    delete car.radio.hitbox.userData.interactableId;
+    raycast.clearHover();
 
-  await curtain.cover(fade);
+    await curtain.cover(fade);
 
-  // Nothing below this line is on screen, so the camera jumps instead of sliding.
-  iso.setFraming({
-    target: new THREE.Vector3(...spec.camera.target),
-    viewSize: spec.camera.viewSize,
-    minViewWidth: spec.camera.minViewWidth,
-  });
-  void iso.reset(0);
+    // Nothing below this line is on screen, so the camera jumps instead of sliding.
+    iso.setFraming({
+      target: new THREE.Vector3(...spec.camera.target),
+      viewSize: spec.camera.viewSize,
+      minViewWidth: spec.camera.minViewWidth,
+    });
+    void iso.reset(0);
 
-  let next = cache.get(id);
-  if (!next) {
-    next = createVehicle(stage, spec);
-    cache.set(id, next);
+    let next = cache.get(id);
+    if (!next) {
+      next = createVehicle(stage, spec);
+      cache.set(id, next);
+    }
+    next.setQuality(st.quality);
+    next.seedLights(lastLights);
+
+    // The exchange.
+    car.setVisible(false);
+    next.setVisible(true);
+    car = next;
+    currentVehicleId = id;
+    unregisterRadio = registerRadio(car, spec);
+    gunControl.setVehicle(car);
+    radioAnchor.copy(car.radio.face);
+    director.setVehicle(spec, car);
+    lighting.setVehicle(spec);
+    // Must precede any engineOn change: the store notifies synchronously, so the new vehicle
+    // would otherwise crank with the old one's starter.
+    layers.setEngineProfile(spec.audio);
+    if (store.get().engineOn) car.ignite(); // needle sweep and the dip, without the crank
+    updateLcd();
+    // The hitbox is raycast before the next render, so give it a world matrix now.
+    stage.bodyRig.updateMatrixWorld(true);
+    (window as unknown as { shotgun: { car: Vehicle } }).shotgun.car = car;
+    // Let the probe re-measure for the new body unless the user pinned quality.
+    if (!qualityWasChosen && !coarsePointer) {
+      probeDone = false;
+      probeT = 0;
+      probeAcc = 0;
+      probeN = 0;
+    }
+
+    // "Loaded" means linked and drawn. compile() walks the scene with traverseVisible, so this
+    // has to follow the exchange rather than precede it — warming the programs of the body that
+    // is on its way out warms nothing at all.
+    await rig.renderer.compileAsync(stage.scene, iso.camera);
+    await drawn();
+  } catch (err) {
+    // A swap that throws must not strand the app behind a black screen with the picker
+    // permanently busy. Whatever went wrong, the curtain comes up and the controls come back.
+    //
+    // The teardown above already released the radio and the gun, so whichever vehicle we are
+    // left standing on has to get them back — otherwise the failure costs the session every
+    // interactable it had, silently, and only the curtain would look recovered.
+    console.error('[swap] failed', err);
+    unregisterRadio();
+    unregisterRadio = registerRadio(car, VEHICLES[currentVehicleId]);
+    gunControl.setVehicle(car);
+  } finally {
+    await curtain.reveal(fade);
+    swapping = false;
+    picker.setBusy(false);
   }
-  next.setQuality(st.quality);
-  next.seedLights(lastLights);
-
-  // The exchange.
-  car.setVisible(false);
-  next.setVisible(true);
-  car = next;
-  currentVehicleId = id;
-  unregisterRadio = registerRadio(car, spec);
-  radioAnchor.copy(car.radio.face);
-  director.setVehicle(spec, car);
-  lighting.setVehicle(spec);
-  // Must precede any engineOn change: the store notifies synchronously, so the new vehicle
-  // would otherwise crank with the old one's starter.
-  layers.setEngineProfile(spec.audio);
-  if (store.get().engineOn) car.ignite(); // needle sweep and the dip, without the crank
-  updateLcd();
-  // The hitbox is raycast before the next render, so give it a world matrix now.
-  stage.bodyRig.updateMatrixWorld(true);
-  (window as unknown as { shotgun: { car: Vehicle } }).shotgun.car = car;
-  // Let the probe re-measure for the new body unless the user pinned quality.
-  if (!qualityWasChosen && !coarsePointer) {
-    probeDone = false;
-    probeT = 0;
-    probeAcc = 0;
-    probeN = 0;
-  }
-
-  // "Loaded" means linked and drawn. compile() walks the scene with traverseVisible, so this
-  // has to follow the exchange rather than precede it — warming the programs of the body that
-  // is on its way out warms nothing at all.
-  await rig.renderer.compileAsync(stage.scene, iso.camera);
-  await drawn();
-
-  await curtain.reveal(fade);
-  swapping = false;
-  picker.setBusy(false);
   if (pendingVehicle) {
     const p = pendingVehicle;
     pendingVehicle = null;
     void swapVehicle(p);
   }
 }
+
 store.subscribe('vehicle', (id) => void swapVehicle(id));
 
 const modeSpring = createSpring(0);
