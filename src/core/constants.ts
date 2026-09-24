@@ -273,8 +273,15 @@ export const AUDIO = {
    * against the engine, which is why it shouted: rain at 0.55 beside an engine at 0.5 is not
    * equal loudness, because rain is broadband and an engine is harmonic.
    */
-  LEVELS: { engine: 0.5, roadNoise: 0.45, rain: 0.42, wind: 0.26, ambience: 0.22, thunder: 0.55, crank: 0.4 },
+  LEVELS: { engine: 0.5, roadNoise: 0.45, rain: 0.42, wind: 0.26, ambience: 0.22, thunder: 0.55, crank: 0.4, gun: 0.45 },
   /**
+   * NOTE ON HEADROOM. There is no limiter between the master fader and the destination, so the
+   * sum of the buses is what reaches the output. Measured at the master tap, the camper in Focus
+   * under thunder peaks at 0.92 with the volume at its default 0.7 — and therefore around 1.3
+   * with the slider all the way up, which clips. That predates the levels below and is not
+   * something they can fix; a DynamicsCompressorNode on the master would be the honest answer.
+   * Until then, nothing new should be allowed to raise that peak.
+   *
    * How loud each group sits in the scene, between its layers and the master fader. Weather at
    * 0.55 is the headline: the sky is no longer allowed to be as loud as the car you are in.
    */
@@ -366,6 +373,26 @@ export const RADIO = {
   /** A dead stream is skipped rather than dwelt on; give up after this many in a row. */
   SKIP_LIMIT: 4,
   STORAGE_KEY: 'shotgun.radio.v1',
+} as const;
+
+/**
+ * The tank's main gun. Recoil and the hull kick are each one damped spring, shoved once a shot;
+ * the peak of a spring given an initial velocity v is about v/omega, which is how these were set:
+ * ~0.42 m of barrel travel, ~4 cm of heave and ~2.6 degrees of nose-up pitch.
+ */
+export const TANK_GUN = {
+  /** A round every few seconds, which is about what a loader manages. */
+  reloadS: 3.2,
+  recoilSpeed: 5.2,
+  barrelOmega: 12,
+  barrelZeta: 0.55,
+  hullHeave: 0.36,
+  hullPitch: 0.42,
+  hullOmega: 9,
+  hullZeta: 0.42,
+  /** Long enough to survive a frame or two at 60 fps; a 90 ms flash is often simply missed. */
+  flashS: 0.14,
+  smokeS: 1.6,
 } as const;
 
 export const SPOTIFY = {

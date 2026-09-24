@@ -30,6 +30,8 @@ export interface Layers {
   setEngineProfile(p: EngineProfile): void;
   thunder(strength: number): void;
   crank(): void;
+  /** A main gun going off. Louder than anything else here, and asked for rather than imposed. */
+  gunshot(): void;
   dispose(): void;
 }
 
@@ -348,6 +350,63 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
       src.connect(lp).connect(g).connect(out);
       src.start();
       src.stop(ctx.currentTime + 3.5);
+    },
+    gunshot() {
+      const ctx = mixer.context;
+      // The engine bus, not the weather one: this is the vehicle making the noise, so the
+      // fader labelled Engine is the one that should govern it.
+      const out = mixer.bus('engine');
+      if (!ctx || !out || ctx.state !== 'running') return;
+      const t = ctx.currentTime;
+      // Three layers land within 25 ms of each other, so their peaks add. Measured at the
+      // master tap: at the old level the sum reached 1.35 with the volume slider all the way
+      // up, which is a clipped gun rather than a loud one. This leaves headroom.
+      const peak = AUDIO.LEVELS.gun;
+
+      // The crack. A few milliseconds of bright noise is the whole difference between a gun and
+      // a thunderclap, which is otherwise the same falling rumble.
+      const crack = ctx.createBufferSource();
+      crack.buffer = noiseBuffer(ctx, 0.3, false);
+      const hp = ctx.createBiquadFilter();
+      hp.type = 'highpass';
+      hp.frequency.setValueAtTime(900, t);
+      hp.frequency.exponentialRampToValueAtTime(220, t + 0.18);
+      const cg = ctx.createGain();
+      cg.gain.setValueAtTime(0.0001, t);
+      cg.gain.exponentialRampToValueAtTime(peak, t + 0.004);
+      cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
+      crack.connect(hp).connect(cg).connect(out);
+      crack.start(t);
+      crack.stop(t + 0.32);
+
+      // The body of it, falling away over a second and a half.
+      const blast = ctx.createBufferSource();
+      blast.buffer = noiseBuffer(ctx, 2.2, true);
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(700, t);
+      lp.frequency.exponentialRampToValueAtTime(70, t + 1.6);
+      const bg = ctx.createGain();
+      bg.gain.setValueAtTime(0.0001, t);
+      bg.gain.exponentialRampToValueAtTime(peak * 0.8, t + 0.025);
+      bg.gain.exponentialRampToValueAtTime(peak * 0.25, t + 0.5);
+      bg.gain.exponentialRampToValueAtTime(0.0001, t + 2.0);
+      blast.connect(lp).connect(bg).connect(out);
+      blast.start(t);
+      blast.stop(t + 2.2);
+
+      // And a sub thump, because 120 mm moves air that a hatchback never will.
+      const sub = ctx.createOscillator();
+      sub.type = 'sine';
+      sub.frequency.setValueAtTime(90, t);
+      sub.frequency.exponentialRampToValueAtTime(34, t + 0.5);
+      const sg = ctx.createGain();
+      sg.gain.setValueAtTime(0.0001, t);
+      sg.gain.exponentialRampToValueAtTime(peak * 0.6, t + 0.015);
+      sg.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+      sub.connect(sg).connect(out);
+      sub.start(t);
+      sub.stop(t + 1.0);
     },
     crank() {
       const ctx = mixer.context;
