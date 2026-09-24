@@ -1,8 +1,13 @@
 import * as THREE from 'three';
 
 /**
- * Registry of things you can click inside the cutaway. V1 registers exactly one: the radio.
- * The registry pattern is the extension seam; there are no "coming soon" stubs.
+ * Registry of things you can click inside the cutaway. The registry pattern is the extension
+ * seam; there are no "coming soon" stubs.
+ *
+ * There are two kinds. A **place** carries `focus`, and clicking it pushes the camera in and
+ * holds it there until something clears `focusedObject` — the radio is one. An **action** has no
+ * `focus`: clicking it runs `onSelect` and the camera does not move, because some things you
+ * click at are things you do rather than places you go.
  */
 export interface Interactable {
   id: string;
@@ -10,7 +15,8 @@ export interface Interactable {
   hitbox: THREE.Object3D;
   /** Hover label, e.g. "Radio". */
   label: string;
-  focus: {
+  /** Present on a place, absent on an action. */
+  focus?: {
     /** World point to centre. */
     target: THREE.Vector3;
     /** Orthographic zoom multiplier, e.g. 3.2. */
@@ -18,8 +24,10 @@ export interface Interactable {
     /** Small swing for a better read, radians. */
     azimuthOffset?: number;
   };
-  onFocus(): void;
-  onBlur(): void;
+  onFocus?(): void;
+  onBlur?(): void;
+  /** An action's whole point. Ignored on anything carrying `focus`. */
+  onSelect?(): void;
 }
 
 export interface Registry {

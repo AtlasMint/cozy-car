@@ -90,7 +90,11 @@ export function createRaycast(
     pointer.x = e.clientX;
     pointer.y = e.clientY;
     cast();
-    if (hovered) store.set({ focusedObject: hovered });
+    if (!hovered) return;
+    const item = registry.get(hovered);
+    // A place is somewhere to go; an action is something to do, and the camera stays put.
+    if (item?.focus) store.set({ focusedObject: hovered });
+    else item?.onSelect?.();
   };
   const onLeave = () => setHover(null);
 

@@ -22,10 +22,10 @@ export function createFocusCamera(iso: IsoCamera, registry: Registry, store: Sto
     if (id === current) return;
     const prev = current ? registry.get(current) : undefined;
     current = id;
-    prev?.onBlur();
+    prev?.onBlur?.();
     const next = id ? registry.get(id) : undefined;
-    if (next) {
-      next.onFocus();
+    if (next?.focus) {
+      next.onFocus?.();
       transition = iso.frame(next.focus.target, next.focus.zoom, INTERACTION.PUSH_IN_MS, next.focus.azimuthOffset ?? 0);
     } else {
       transition = iso.reset(INTERACTION.PUSH_IN_MS);
