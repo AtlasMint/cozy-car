@@ -268,13 +268,17 @@ export const AUDIO = {
   FOCUS_RATE: 1.35,
   /** Duck factor while the radio panel is open. */
   DUCK: 0.35,
-  LEVELS: { engine: 0.5, roadNoise: 0.45, rain: 0.55, wind: 0.3, ambience: 0.18, thunder: 0.9, crank: 0.4 },
   /**
-   * Group levels, between each layer and the master fader. A layer's own level says how loud it
-   * is against its neighbours on the same bus; the bus says how loud that whole group sits in
-   * the scene. Tuned in Phase 5 — these are 1 so the routing change is silent.
+   * How loud a layer is against its neighbours on the same bus. Weather used to be set here
+   * against the engine, which is why it shouted: rain at 0.55 beside an engine at 0.5 is not
+   * equal loudness, because rain is broadband and an engine is harmonic.
    */
-  BUSES: { engine: 1, weather: 1, ambience: 1, music: 1 },
+  LEVELS: { engine: 0.5, roadNoise: 0.45, rain: 0.42, wind: 0.26, ambience: 0.22, thunder: 0.55, crank: 0.4 },
+  /**
+   * How loud each group sits in the scene, between its layers and the master fader. Weather at
+   * 0.55 is the headline: the sky is no longer allowed to be as loud as the car you are in.
+   */
+  BUSES: { engine: 1, weather: 0.55, ambience: 0.8, music: 0.9 },
 } as const;
 
 export const INTERACTION = {
