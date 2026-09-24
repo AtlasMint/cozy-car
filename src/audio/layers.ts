@@ -36,7 +36,7 @@ export interface Layers {
 interface Layer {
   gain: GainNode;
   source: AudioBufferSourceNode | null;
-  synth: { nodes: AudioNode[]; setRate?: (r: number) => void; setEngine?: (rpm: number, load: number) => void; setRain?: (intensity: number) => void; dispose?: () => void } | null;
+  synth: { nodes: AudioNode[]; setRate?: (r: number) => void; setEngine?: (rpm: number, load: number) => void; setRain?: (intensity: number) => void; setWind?: (kmh: number, dt: number) => void; dispose?: () => void } | null;
   level: number;
 }
 
@@ -213,23 +213,56 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
         };
       }
       case 'wind': {
-        const src = loopNoise(ctx, false);
-        const bp = ctx.createBiquadFilter();
-        bp.type = 'bandpass';
-        bp.frequency.value = 420;
-        bp.Q.value = 1.2;
-        const lfo = ctx.createOscillator();
-        lfo.frequency.value = 0.13;
-        const lfoGain = ctx.createGain();
-        lfoGain.gain.value = 220;
-        lfo.connect(lfoGain).connect(bp.frequency);
-        lfo.start();
-        const g = ctx.createGain();
-        g.gain.value = 0.5;
-        src.connect(bp).connect(g).connect(out);
-        src.start();
-        nodes.push(src, bp, lfo, lfoGain, g);
-        return { nodes };
+        const W = AUDIO.WIND_SYNTH;
+        // Brown under, white over: a bandpass at 180 Hz finds almost nothing in white noise,
+        // and the low rush is most of what a wind sounds like from inside a parked car.
+        const low = loopNoise(ctx, true);
+        const high = loopNoise(ctx, false);
+        const sum = ctx.createGain();
+        sum.gain.value = W.gain;
+        sum.connect(out);
+        const tops: BiquadFilterNode[] = [];
+        W.bands.forEach((freq, i) => {
+          const bp = ctx.createBiquadFilter();
+          bp.type = 'bandpass';
+          bp.frequency.value = freq;
+          bp.Q.value = W.q[i]!;
+          const g = ctx.createGain();
+          g.gain.value = W.gains[i]!;
+          (i === 0 ? low : high).connect(bp).connect(g).connect(sum);
+          // Each band drifts at its own rate. Incommensurate on purpose: with one LFO, or with
+          // rates that share a factor, the whole thing pulses in step and reads as a machine.
+          const lfo = ctx.createOscillator();
+          lfo.frequency.value = W.lfo[i]!;
+          const depth = ctx.createGain();
+          depth.gain.value = freq * W.sweep;
+          lfo.connect(depth).connect(bp.frequency);
+          lfo.start();
+          nodes.push(bp, g, lfo, depth);
+          if (i === W.bands.length - 1) tops.push(bp);
+        });
+        low.start();
+        high.start();
+        nodes.push(low, high, sum);
+
+        const top = tops[0]!;
+        const topQ = W.q[W.q.length - 1]!;
+        let gust = 0;
+        return {
+          nodes,
+          setWind(kmh, dt) {
+            // A damped random walk: pulled back toward nothing, shoved at random. Harder wind
+            // is shoved harder, so a gale gusts and a breeze only sighs.
+            const strength = clamp01(kmh / 40);
+            const step = Math.min(dt, 0.05);
+            gust += (-gust * W.gust.lambda + (Math.random() * 2 - 1) * W.gust.kick * (0.25 + strength)) * step;
+            gust = Math.max(-1, Math.min(1, gust));
+            const t = ctx.currentTime;
+            sum.gain.setTargetAtTime(W.gain * (1 + W.gust.depth * gust * strength), t, 0.25);
+            // The top band tightens at the peak of a gust, which is the whistle.
+            top.Q.setTargetAtTime(topQ * (1 + W.gust.qLift * Math.max(0, gust) * strength), t, 0.25);
+          },
+        };
       }
       case 'ambience': {
         const src = loopNoise(ctx, true);
@@ -283,6 +316,7 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
       setLevel('roadNoise', L.roadNoise * profile.gain.road * speedK * d.engine, dt);
       setLevel('rain', L.rain * d.rain, dt);
       layers.get('rain')?.synth?.setRain?.(d.rain);
+      layers.get('wind')?.synth?.setWind?.(d.windKmh, dt);
       setLevel('wind', L.wind * profile.gain.wind * (Math.min(1, d.windKmh / 40) * 0.6 + 0.5 * speedK), dt);
       setLevel('ambience', L.ambience * (1 - 0.5 * d.night), dt);
 

@@ -305,6 +305,31 @@ export const AUDIO = {
     /** Heavy rain gains a low bed no amount of hiss can stand in for. */
     rumble: { freq: 180, gain: 0.5, from: 0.55 },
   },
+  /**
+   * Wind. Three resonances rather than one, each swept at a rate that shares no common factor
+   * with the others — one bandpass on one LFO breathes on a metronome, and the ear finds the
+   * period within seconds.
+   */
+  WIND_SYNTH: {
+    bands: [180, 420, 1100] as const,
+    q: [1.6, 1.2, 0.9] as const,
+    gains: [0.55, 0.75, 0.32] as const,
+    lfo: [0.07, 0.11, 0.19] as const,
+    /** How far each LFO sweeps its band, as a fraction of that band's centre. */
+    sweep: 0.32,
+    /**
+     * Gusts: a damped random walk, which is what makes wind read as weather rather than as a
+     * filter. `lambda` pulls it back to nothing, `kick` is how hard it is shoved, `depth` how
+     * much of the level it owns, `qLift` how much the top band tightens at the peak of one.
+     */
+    gust: { lambda: 0.22, kick: 3.2, depth: 0.55, qLift: 0.7 },
+    /**
+     * Trim on the whole layer. Three summed bands with a brown source under the lowest one
+     * arrive about 6 dB above the single white-noise bandpass they replace; measured against
+     * the previous build the same way rain was.
+     */
+    gain: 0.48,
+  },
 } as const;
 
 export const INTERACTION = {
