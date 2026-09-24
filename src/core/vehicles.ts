@@ -10,10 +10,11 @@
  * `VEHICLES.hatchback` holds today's shipped numbers verbatim — it is the regression proof for
  * the extraction phases.
  */
-import type { VehicleId } from './store';
+import { LISTED_VEHICLES, type VehicleId } from './store';
 import { buildHatchback } from '../scene/car/bodies/hatchback';
 import { buildSports } from '../scene/car/bodies/sports';
 import { buildVan } from '../scene/car/bodies/van';
+import { buildTank } from '../scene/car/bodies/tank';
 import { AUDIO, CAMERA, CAR, INTERACTION, MOTION, PALETTE, SPEED, WEATHER_FX } from './constants';
 import { clamp01, DEG } from '../util/math';
 import type { Builder, CarMaterials, PaintSpec } from '../scene/car/parts';
@@ -26,6 +27,24 @@ export type Vec3 = readonly [number, number, number];
  * What a body hands back to the assembler. Every vehicle exports one `build` of this shape;
  * nothing else about a body is visible to the rest of the app.
  */
+/**
+ * A vehicle that can do something on command. Exactly one of them can.
+ *
+ * `update` returns the recoil to add on top of whatever the engine rig produced, rather than
+ * writing to the scene graph itself — a body may not reach into the scene graph, and the hull's
+ * position is the rig's to own.
+ */
+export interface Ordnance {
+  /** Oversized invisible proxy on the barrel, for the raycaster. */
+  hitbox: THREE.Mesh;
+  /** Fire, if it has finished reloading. Returns whether it actually fired. */
+  fire(): boolean;
+  /** Per-frame. Returns the kick to add to the hull: metres of heave, radians of pitch. */
+  update(dt: number): { heave: number; pitch: number };
+  /** 0 while reloading, 1 when ready. */
+  readonly ready: number;
+}
+
 export interface BodyKit {
   panes: GlassPane[];
   setLights(head: number, tail: number): void;
@@ -37,6 +56,10 @@ export interface BodyKit {
   exhaustTip: THREE.Vector3;
   /** The hanging thing on its damped pendulum: freshener, mobile, keyring. */
   swing: THREE.Group;
+  /** Only a vehicle that carries a weapon has one. */
+  gun?: Ordnance;
+  /** Free anything the body allocated that the Builder does not own — its own materials. */
+  dispose?(): void;
 }
 
 export interface VehicleDims {
@@ -572,10 +595,166 @@ export const VAN: VehicleSpec = {
   build: buildVan,
 };
 
+/**
+ * A modern main battle tank. It is a whole vehicle by the same rules as the other three — its
+ * own spec, its own body file, the same material set — and it is deliberately absent from
+ * VEHICLE_ORDER, from the #vehicle= hash and from the stored preference. Press T.
+ */
+export const TANK: VehicleSpec = {
+  id: 'tank',
+  label: 'Tank',
+  paint: {
+    // Olive drab. It has to separate from a warm neutral plinth like everything else here, and
+    // dark and cool against light and warm is the easiest separation there is.
+    body: '#5C6350',
+    trim: '#3A3F35',
+    hub: '#4A5042',
+    vinyl: '#23211E',
+    fabric: '#6B6A52',
+    fabricDark: '#4E4D3C',
+  },
+  dims: {
+    length: 7.0,
+    width: 3.5,
+    wallZ: 1.62,
+    wallThickness: 0.08,
+    floorY: 0.42,
+    floorTopY: 0.48,
+    sillY: 0.95,
+    // Hull roof — the turret ring sits on this.
+    beltY: 1.55,
+    // Turret roof. The hole in it is the open thing on this vehicle.
+    wallTopY: 2.42,
+    // Sprocket to idler.
+    wheelbase: 5.0,
+    track: 2.7,
+    // The sprocket and idler; the five road wheels between them are the body's own.
+    wheelRadius: 0.42,
+    wheelWidth: 0.42,
+    rearWidthScale: 1,
+    // No wheel arches on a tank, but the number still has to be sane for the shared invariant.
+    archRadius: 0.5,
+    spokes: 0,
+    contactShadow: [1.35, 0.95],
+  },
+  cabin: {
+    // The commander, on the right, which is the far side from this camera — so what you see of
+    // them is head and shoulders over the turret roof, which is the whole picture anyway.
+    driverZ: 0.46,
+    passengerZ: -0.5,
+    seatWidth: 0.5,
+    // A grab bar across the front of the hatch. wheelNormal must NOT be vertical: the figure
+    // builds its grip plane as up × normal, and worldUp projected off a vertical normal is the
+    // zero vector — three's normalize() then leaves it zero and both hands land on the hub, with
+    // no error and no NaN to notice. Facing back at the commander keeps the plane upright.
+    wheelCentre: [0.42, 2.46, 0.46],
+    wheelNormal: [-1, 0, 0],
+    steeringRadius: 0.2,
+  },
+  anchors: {
+    radioFace: [-0.62, 2.52, -0.3],
+    radioHitbox: [0.3, 0.26, 0.4],
+    radioFocusOffset: [0.02, 0.02, -0.04],
+    // Outboard of the near side skirt, whose outer face is at -1.745; inboard of that the
+    // plume spawns behind a solid plate and is never seen.
+    exhaustTip: [-2.62, 1.37, -1.86],
+    // Hung from the pintle mount beside the commander. Over the turret roof it hung through
+    // solid plate: the roof covers the whole turret plan, and the cupola is 0.42 m of it.
+    swingPivot: [0.62, 2.69, 0.76],
+    swingLength: 0.16,
+    headlight: { x: 3.42, y: 1.3, z: 1.3 },
+    coneLength: 6.5,
+    coneRadius: 1.1,
+    pool: { w: 9.5, d: 5.2, x: 7.2 },
+    cabinLight: [0.1, 2.0, 0.46],
+    cabinDistance: 2.4,
+    livingLight: null,
+    livingDistance: 4,
+    dashLight: [-0.5, 2.45, -0.3],
+    dashDistance: 1.5,
+    shadowOrtho: 7,
+    shadowRadius: 2.5,
+    shadowNormalBias: 0.03,
+  },
+  // Wide enough for the hull and long enough for the gun to stay in frame.
+  // Wide enough for the hull, and shifted forward so the muzzle — and the metre of flash past
+  // it — stay inside the frame rather than going off the corner.
+  camera: { viewSize: 10.0, minViewWidth: 10.7, target: [0.35, 1.2, -1.0], radioZoom: 6.154 },
+  // The gun is left out of the shelter box on purpose: a 15 cm barrel with rain drawn over it
+  // reads as nothing at all, and including it would carve a rain-free wedge across the frame.
+  shelter: { min: [-3.9, 0, -1.8], max: [3.9, 3.05, 1.8] },
+  motion: {
+    // Sixty tonnes on torsion bars: slow, deep and not very interested in the road surface.
+    //
+    // The amplitudes are small for a reason beyond realism. The track run and the road wheels
+    // are the body's own geometry and ride bodyRig, while the sprocket and idler are the shared
+    // wheels under stage.wheels and stay planted — so every millimetre of heave shears the track
+    // against its own sprockets. Holding the travel near a centimetre keeps that invisible at
+    // this scale, and a vehicle this heavy should barely move anyway.
+    idleHz: 7,
+    idle: { chill: { y: 0.005, roll: 0.34 * DEG }, focus: { y: 0.004, roll: 0.24 * DEG } },
+    sway: { hz: 0.28, chill: { y: 0.008, pitch: 0.22 * DEG }, focus: { y: 0.018, pitch: 0.7 * DEG } },
+    road: { hz: 2.0, y: 0.016, roll: 0.5 * DEG, fullAt: 11 },
+    bump: { impulse: 0.032, rearDelay: 5.0 / 16, omega: 9 },
+    bodySpringOmega: 4.5,
+    ignitionKick: -1.1,
+    wheelToBody: 0.4,
+    wheelToPitch: 0.22,
+    rpm: { idle: 560, idleJitter: 40, cruise: 1900, wander: 140, sweepMs: 1900, sweepPeak: 2900 },
+    exhaust: { chillRate: 1.6, focusRate: 3.0, life: 2.6, rise: 0.14, drift: 0.5, size: 0.26, grow: 0.5 },
+  },
+  audio: {
+    // A twin-turbo V12 diesel, idling low enough that you can count the firings.
+    cylinders: 12,
+    rolloff: { idle: 0.56, loaded: 0.36 },
+    cylinderSpread: 0.14,
+    asymmetryDeg: 8,
+    irregularity: { idle: 0.22, loaded: 0.07 },
+    modes: [16, 48, 80],
+    dronePeak: { freq: 52, q: 5, gainDb: 8 },
+    dampingHz: 1100,
+    knock: { gain: 0.26, freq: 2800, q: 1.0 },
+    tick: { gain: 0.05, freq: 3200 },
+    intake: { idle: 0.07, loaded: 0.34, freq: 420 },
+    crank: { from: 12, to: 34, ms: 1700 },
+    // The tracks are the loudest thing about it, but only by a little. Measured at the master
+    // tap, 1.3/1.4 made the tank in Focus under thunder the loudest thing the app can produce,
+    // and the mix has no limiter to catch it — see the note in constants.AUDIO.
+    gain: { engine: 1.12, road: 1.16, wind: 0.85 },
+    focusRate: 1.1,
+  },
+  pose: {
+    // The figure is rigid above the hips — head is always hips.y + 0.60 and shoulders + 0.36 —
+    // so riding with the head and shoulders out of a 2.42 m hatch is entirely a matter of how
+    // high the hips are. 2.28 clears the cupola ring, not just the roof — at 2.15 the shoulders
+    // sat inside the ring and only the top of the head came out.
+    hips: [-0.05, 2.28, 0.46],
+    torsoLean: 0.04,
+    legSplay: 0.1,
+    // Seated on the commander's stand, legs dropping into the turret where they are not seen.
+    knee: [0.24, 2.13],
+    foot: [0.34, 1.85],
+    // Element 0 is the near hand and must have cos < 0 to land on the camera side; 180 and 0
+    // put one hand at each end of the bar.
+    gripAngles: [180, 0],
+    headTurnYaw: -0.5,
+    slumpScale: 0.15,
+    // `sip` cannot be dropped from the gesture pool, so this has to be somewhere a hand really
+    // reaches — about 0.4 m from the near shoulder, which is the roof just beside the hatch.
+    cup: [-0.3, 2.48, -0.05],
+    gearKnob: null,
+  },
+  gauges: { rpmFull: 3000, kmhFull: 80 },
+  speed: { focus: 16 },
+  build: buildTank,
+};
+
 export const VEHICLES: Record<VehicleId, VehicleSpec> = {
   hatchback: HATCHBACK,
   van: VAN,
   sports: SPORTS,
+  tank: TANK,
 };
 
-export const VEHICLE_ORDER: readonly VehicleId[] = ['hatchback', 'van', 'sports'];
+/** What the picker offers and what a preference may hold. Not every spec in VEHICLES. */
+export const VEHICLE_ORDER: readonly VehicleId[] = LISTED_VEHICLES;

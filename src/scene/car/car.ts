@@ -51,6 +51,8 @@ export interface Vehicle {
   update(inputs: VehicleInputs): number;
   /** Crank: body dip, exhaust cough, needle sweep. Lights ramp on their own from `engine`. */
   ignite(): void;
+  /** Fire the main gun. False if this vehicle has none, or has not finished reloading. */
+  fire(): boolean;
   /** Low quality hides the body's detail group: free at runtime and reversible. */
   setQuality(q: 'low' | 'high'): void;
   /** Show or hide every node this vehicle owns, without detaching it. */
@@ -59,6 +61,9 @@ export interface Vehicle {
   seedLights(k: number): void;
   dispose(): void;
 }
+
+/** No gun, no kick. Shared so the common path allocates nothing per frame. */
+const NO_KICK = { heave: 0, pitch: 0 };
 
 export function createVehicle(stage: Stage, v: VehicleSpec = HATCHBACK): Vehicle {
   const materials: CarMaterials = createMaterials(v.paint);
@@ -103,8 +108,11 @@ export function createVehicle(stage: Stage, v: VehicleSpec = HATCHBACK): Vehicle
         ampScale: inp.ampScale,
         bumpsEnabled: inp.bumpsEnabled,
       });
-      stage.bodyRig.position.y = out.y;
-      stage.bodyRig.rotation.z = out.pitch;
+      // Recoil rides on top of whatever the rig produced. The gun owns its own springs; the
+      // hull's position stays the rig's to write.
+      const kick = body.gun?.update(inp.dt) ?? NO_KICK;
+      stage.bodyRig.position.y = out.y + kick.heave;
+      stage.bodyRig.rotation.z = out.pitch + kick.pitch;
       stage.bodyRig.rotation.x = out.roll;
       for (let i = 0; i < 4; i++) wheels.wheels[wheelOrder[i]!]!.springOffset = out.wheels[i]!;
       wheels.roll(inp.speed * inp.dt);
@@ -140,6 +148,9 @@ export function createVehicle(stage: Stage, v: VehicleSpec = HATCHBACK): Vehicle
       rig.ignite();
       exhaust.cough();
     },
+    fire() {
+      return body.gun?.fire() ?? false;
+    },
     setQuality(q) {
       built.detailGroup.visible = q !== 'low';
     },
@@ -174,6 +185,7 @@ export function createVehicle(stage: Stage, v: VehicleSpec = HATCHBACK): Vehicle
       stage.carRoot.remove(exhaust.group);
       exhaust.dispose();
       driver.dispose();
+      body.dispose?.();
       built.dispose();
       radio.dispose();
       wheels.dispose();
