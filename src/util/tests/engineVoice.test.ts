@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import { buildOrderTable, cycleHz, firingHz, HARMONICS } from '../../audio/engineVoice';
-import { VEHICLES, VEHICLE_ORDER, type EngineProfile } from '../../core/vehicles';
+import { VEHICLES, type EngineProfile } from '../../core/vehicles';
+
+/** Every spec, including the ones the picker does not offer. */
+const ALL_VEHICLES = Object.keys(VEHICLES) as (keyof typeof VEHICLES)[];
 
 const mag = (t: { real: Float32Array; imag: Float32Array }, k: number) => Math.hypot(t.real[k]!, t.imag[k]!);
 
@@ -77,7 +80,7 @@ describe('order table', () => {
   });
 
   test('coefficients are finite, sized and free of DC', () => {
-    for (const id of VEHICLE_ORDER) {
+    for (const id of ALL_VEHICLES) {
       const v = VEHICLES[id];
       for (const rolloff of [v.audio.rolloff.idle, v.audio.rolloff.loaded]) {
         const t = buildOrderTable(v.audio, rolloff);
@@ -98,7 +101,7 @@ describe('order table', () => {
   });
 
   test('every shipped vehicle is louder on its firing order than on its half-orders', () => {
-    for (const id of VEHICLE_ORDER) {
+    for (const id of ALL_VEHICLES) {
       const v = VEHICLES[id];
       const t = buildOrderTable(v.audio, v.audio.rolloff.idle);
       const firing = v.audio.cylinders; // harmonic index of the firing order

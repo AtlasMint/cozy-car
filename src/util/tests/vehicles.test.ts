@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import { VEHICLES, VEHICLE_ORDER, type VehicleSpec } from '../../core/vehicles';
 
-const specs: [string, VehicleSpec][] = VEHICLE_ORDER.map((id) => [id, VEHICLES[id]]);
+// Every spec in the registry, which is deliberately more than VEHICLE_ORDER offers: an invariant
+// that only holds for the vehicles with a button is not an invariant.
+const specs: [string, VehicleSpec][] = Object.entries(VEHICLES);
 
 describe('vehicle specs', () => {
   test('the registry is complete and self-consistent', () => {
@@ -65,6 +67,39 @@ describe('vehicle specs', () => {
         expect(v.audio.irregularity.loaded).toBeLessThan(v.audio.irregularity.idle);
         // and the pulse always brightens under load
         expect(v.audio.rolloff.loaded).toBeLessThan(v.audio.rolloff.idle);
+      });
+
+      test('the grip plane does not collapse', () => {
+        // The figure builds its grip plane as worldUp projected off wheelNormal. For a vertical
+        // normal that projection is the zero vector, three's normalize() leaves it zero, and
+        // BOTH hands land on the hub — silently, with no error and no NaN to notice.
+        const n = v.cabin.wheelNormal;
+        const len = Math.hypot(n[0], n[1], n[2]);
+        // The hatchback's shipped normal is 0.9994 long, which is fine; what matters is that it
+        // is a direction at all and that it is not straight up.
+        expect(len).toBeCloseTo(1, 2);
+        const dotUp = n[1] / len;
+        expect(Math.abs(dotUp)).toBeLessThan(0.98);
+      });
+
+      test('the near hand is on the camera side', () => {
+        // gripAngles[0] feeds the near shoulder, and `right` works out to +Z on every vehicle,
+        // so the near grip needs a negative cosine or the arms cross the body to reach it.
+        expect(Math.cos(v.pose.gripAngles[0] * (Math.PI / 180))).toBeLessThan(0);
+        expect(Math.cos(v.pose.gripAngles[1] * (Math.PI / 180))).toBeGreaterThan(0);
+      });
+
+      test('the pendulum has a length to swing on', () => {
+        // car.ts divides 9.81 by this every build; zero makes the swing NaN on frame one and the
+        // NaN never washes out.
+        expect(v.anchors.swingLength).toBeGreaterThan(0);
+      });
+
+      test('the near headlight keeps a side to be on', () => {
+        // lighting.setVehicle re-reads each cone's own z to recover its sign. A spec with
+        // headlight.z = 0 parks both cones at zero, and the NEXT vehicle inherits sign(0 || 1)
+        // for both — the near beam is then gone for the rest of the session.
+        expect(Math.abs(v.anchors.headlight.z)).toBeGreaterThan(0);
       });
 
       test('the driver can reach the wheel', () => {

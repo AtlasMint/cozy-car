@@ -1,6 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { floorExposure, seeThrough, SEE_THROUGH_BELOW, VEHICLES, VEHICLE_ORDER, type VehicleSpec } from '../../core/vehicles';
+import { floorExposure, seeThrough, SEE_THROUGH_BELOW, VEHICLES, type VehicleSpec } from '../../core/vehicles';
 import { Builder, createMaterials } from '../../scene/car/parts';
+
+/** Every spec, including the ones the picker does not offer. */
+const ALL_VEHICLES = Object.keys(VEHICLES) as (keyof typeof VEHICLES)[];
 
 describe('floor exposure', () => {
   test('a point on the floor clears the near wall exactly when y + z + wallZ > wallTopY', () => {
@@ -19,7 +22,7 @@ describe('floor exposure', () => {
   });
 
   test('see-through follows the geometry, never a declaration', () => {
-    for (const id of VEHICLE_ORDER) {
+    for (const id of ALL_VEHICLES) {
       const v = VEHICLES[id];
       expect(seeThrough(v)).toBe(floorExposure(v.dims) < SEE_THROUGH_BELOW);
     }
@@ -71,7 +74,7 @@ describe('the camper opens rather than fades', () => {
     // Wheel centres sit at y = wheelRadius, so a wheel reaches 2r — above the cabin floor on
     // every vehicle. That is why the near side keeps a wing and a lip: without them the wheel
     // rises into the room.
-    for (const id of VEHICLE_ORDER) {
+    for (const id of ALL_VEHICLES) {
       const d = VEHICLES[id].dims;
       expect(2 * d.wheelRadius).toBeGreaterThan(d.floorTopY);
     }

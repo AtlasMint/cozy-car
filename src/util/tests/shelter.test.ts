@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { shelteredByBox } from '../math';
-import { VEHICLES, VEHICLE_ORDER } from '../../core/vehicles';
+import { VEHICLES } from '../../core/vehicles';
 import { createMaterials } from '../../scene/car/parts';
+
+/** Every spec, including the ones the picker does not offer. */
+const ALL_VEHICLES = Object.keys(VEHICLES) as (keyof typeof VEHICLES)[];
 
 /** The camera looks from −X, +Y, −Z, so the view ray into the scene runs (+1, −1, +1). */
 const VIEW: readonly [number, number, number] = [1, -1, 1];
@@ -27,7 +30,7 @@ describe('shelter test', () => {
     expect(shelteredByBox([8, 0.5, 0], VIEW, min, max)).toBe(false);
   });
 
-  for (const id of VEHICLE_ORDER) {
+  for (const id of ALL_VEHICLES) {
     const v = VEHICLES[id];
     test(`${id}: a drop that would be drawn over the cabin is killed, one beside it is not`, () => {
       const { min, max } = v.shelter;
@@ -58,7 +61,7 @@ describe('draw-call budget', () => {
     // No vehicle may add a material key: that would raise the ceiling for all of them, and a
     // new material feature flag would recompile every lit program on a swap.
     const shape = Object.keys(createMaterials(VEHICLES.hatchback.paint)).sort().join(',');
-    for (const id of VEHICLE_ORDER) {
+    for (const id of ALL_VEHICLES) {
       expect(Object.keys(createMaterials(VEHICLES[id].paint)).sort().join(',')).toBe(shape);
     }
   });
