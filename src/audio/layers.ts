@@ -3,6 +3,7 @@ import { HATCHBACK, type EngineProfile } from '../core/vehicles';
 import { createEngineVoice, type EngineVoice } from './engineVoice';
 import { clamp01, damp } from '../util/math';
 import { rainBuffer } from './rain';
+import { blastImpulse, trackBuffer } from './textures';
 import type { Bus, Mixer } from './mixer';
 
 /**
@@ -38,7 +39,7 @@ export interface Layers {
 interface Layer {
   gain: GainNode;
   source: AudioBufferSourceNode | null;
-  synth: { nodes: AudioNode[]; setRate?: (r: number) => void; setEngine?: (rpm: number, load: number) => void; setRain?: (intensity: number) => void; setWind?: (kmh: number, dt: number) => void; dispose?: () => void } | null;
+  synth: { nodes: AudioNode[]; setRate?: (r: number) => void; setEngine?: (rpm: number, load: number) => void; setRain?: (intensity: number) => void; setWind?: (kmh: number, dt: number) => void; setRoad?: (speed: number) => void; dispose?: () => void } | null;
   level: number;
 }
 
@@ -146,14 +147,64 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
         };
       }
       case 'roadNoise': {
-        const src = loopNoise(ctx, true);
-        const lp = ctx.createBiquadFilter();
-        lp.type = 'lowpass';
-        lp.frequency.value = 160;
-        src.connect(lp).connect(out);
-        src.start();
-        nodes.push(src, lp);
-        return { nodes };
+        const tr = profile.tracks;
+        if (!tr) {
+          // Tyres on tarmac: a hum.
+          const src = loopNoise(ctx, true);
+          const lp = ctx.createBiquadFilter();
+          lp.type = 'lowpass';
+          lp.frequency.value = 160;
+          src.connect(lp).connect(out);
+          src.start();
+          nodes.push(src, lp);
+          return { nodes };
+        }
+        // Tracks: link clatter whose rate follows speed, and a sprocket squeal over it. The
+        // clatter is a generated impact texture (textures.ts) played faster as the tank moves,
+        // which also pitches the ring up a little — steel under strain does the same.
+        const data = trackBuffer(ctx.sampleRate, 4, tr.clatterRate, 0x7a11);
+        const buffer = ctx.createBuffer(1, data.length, ctx.sampleRate);
+        buffer.copyToChannel(data, 0);
+        const clatter = ctx.createBufferSource();
+        clatter.buffer = buffer;
+        clatter.loop = true;
+        clatter.playbackRate.value = 0.2;
+        const band = ctx.createBiquadFilter();
+        band.type = 'bandpass';
+        band.frequency.value = 1400;
+        band.Q.value = 0.5;
+        clatter.connect(band).connect(out);
+        clatter.start(ctx.currentTime, Math.random() * 4);
+
+        const hiss = loopNoise(ctx, false);
+        const squeal = ctx.createBiquadFilter();
+        squeal.type = 'bandpass';
+        squeal.frequency.value = tr.squeal.freq;
+        squeal.Q.value = tr.squeal.q;
+        const squealGain = ctx.createGain();
+        squealGain.gain.value = 0;
+        // The squeal comes and goes as links bind and release; a slow LFO on its pitch keeps it
+        // from being one steady whistle.
+        const lfo = ctx.createOscillator();
+        lfo.frequency.value = 0.37;
+        const lfoDepth = ctx.createGain();
+        lfoDepth.gain.value = tr.squeal.freq * 0.04;
+        lfo.connect(lfoDepth).connect(squeal.frequency);
+        lfo.start();
+        hiss.connect(squeal).connect(squealGain).connect(out);
+        hiss.start();
+        nodes.push(clatter, band, hiss, squeal, squealGain, lfo, lfoDepth);
+        return {
+          nodes,
+          setRoad(speed) {
+            const t = ctx.currentTime;
+            const rate = Math.min(2.4, Math.max(0.2, speed / tr.speedForRate1));
+            clatter.playbackRate.setTargetAtTime(rate, t, 0.4);
+            // Squeal needs real speed before it starts, and then grows with it.
+            const k = Math.min(1, Math.max(0, (speed - 2) / 12));
+            squealGain.gain.setTargetAtTime(tr.squeal.gain * k, t, 0.5);
+          },
+        };
       }
       case 'rain': {
         // Two textures — a drizzle and a downpour — crossfaded by intensity, because what
@@ -286,6 +337,33 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
     }
   };
 
+  const teardownSynth = (synth: NonNullable<Layer['synth']>) => {
+    synth.dispose?.();
+    for (const n of synth.nodes) {
+      try {
+        (n as OscillatorNode).stop?.();
+      } catch {
+        /* already stopped */
+      }
+      n.disconnect();
+    }
+  };
+
+  // The space the gun goes off in. Built once, on the first shot, and kept: a convolver's cost
+  // is its impulse response, and there is no reason to pay for it while nobody is firing.
+  let blastVerb: ConvolverNode | null = null;
+  const verb = (ctx: AudioContext, out: AudioNode): ConvolverNode => {
+    if (blastVerb) return blastVerb;
+    const ir = blastImpulse(ctx.sampleRate, 2.6, 0xb1a57);
+    const buffer = ctx.createBuffer(1, ir.length, ctx.sampleRate);
+    buffer.copyToChannel(ir, 0);
+    blastVerb = ctx.createConvolver();
+    blastVerb.buffer = buffer;
+    blastVerb.normalize = false;
+    blastVerb.connect(out);
+    return blastVerb;
+  };
+
   const setLevel = (name: LayerName, target: number, dt: number) => {
     const l = layers.get(name);
     const ctx = mixer.context;
@@ -296,6 +374,7 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
 
   return {
     setEngineProfile(p) {
+      const hadTracks = !!profile.tracks;
       profile = p;
       // The voice bakes its wave tables and resonators per vehicle, so it is rebuilt rather
       // than retuned. The layer's gain node survives, so the level ramp is unbroken.
@@ -306,6 +385,14 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
         voice.output.connect(layer.gain);
         engineVoice = voice;
         layer.synth = { nodes: [], setEngine: (rpm, load) => voice.set(rpm, load), dispose: () => voice.dispose() };
+      }
+      // The road layer is the one other thing a vehicle can change the *kind* of: tyres hum and
+      // tracks clatter. Rebuild it only when that changes, and only if it is the synth — a file
+      // dropped into public/audio stays whatever it is.
+      const road = layers.get('roadNoise');
+      if (road && road.synth && !road.source && hadTracks !== !!p.tracks) {
+        teardownSynth(road.synth);
+        road.synth = synthFor(mixer.context!, 'roadNoise', road.gain);
       }
     },
     update(dt, d) {
@@ -319,6 +406,7 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
       setLevel('rain', L.rain * d.rain, dt);
       layers.get('rain')?.synth?.setRain?.(d.rain);
       layers.get('wind')?.synth?.setWind?.(d.windKmh, dt);
+      layers.get('roadNoise')?.synth?.setRoad?.(d.speed);
       setLevel('wind', L.wind * profile.gain.wind * (Math.min(1, d.windKmh / 40) * 0.6 + 0.5 * speedK), dt);
       setLevel('ambience', L.ambience * (1 - 0.5 * d.night), dt);
 
@@ -358,55 +446,114 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
       const out = mixer.bus('engine');
       if (!ctx || !out || ctx.state !== 'running') return;
       const t = ctx.currentTime;
-      // Three layers land within 25 ms of each other, so their peaks add. Measured at the
-      // master tap: at the old level the sum reached 1.35 with the volume slider all the way
-      // up, which is a clipped gun rather than a loud one. This leaves headroom.
+      // Several layers land within 25 ms of each other, so their peaks add. Measured at the
+      // master tap with the engine silenced and the volume all the way up, this shape peaks at
+      // about 0.85 — around the limiter's threshold, so the limiter stays a backstop rather than
+      // the plan. The 3 ms shock is what sets that peak; the body is what you feel.
       const peak = AUDIO.LEVELS.gun;
+      const wet = verb(ctx, out);
+      // What goes to the room. Not the sub — low end in a reverb is mud, and outdoors it would
+      // not reflect anyway.
+      const send = ctx.createGain();
+      send.gain.value = 0.8;
+      send.connect(wet);
 
-      // The crack. A few milliseconds of bright noise is the whole difference between a gun and
-      // a thunderclap, which is otherwise the same falling rumble.
+      // 1. The shock. Two milliseconds of full-band impulse. A real muzzle blast starts as a
+      //    step in pressure, and without this the whole thing has a soft leading edge no matter
+      //    what follows.
+      const shock = ctx.createBufferSource();
+      shock.buffer = noiseBuffer(ctx, 0.01, false);
+      const shockGain = ctx.createGain();
+      shockGain.gain.setValueAtTime(peak * 0.9, t);
+      shockGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.003);
+      shock.connect(shockGain);
+      shockGain.connect(out);
+      shockGain.connect(send);
+      shock.start(t);
+      shock.stop(t + 0.01);
+
+      // 2. The crack: bright, broad and gone in sixty milliseconds. A bandpass rather than the
+      //    old swept highpass — that read as hiss, this reads as a snap.
       const crack = ctx.createBufferSource();
-      crack.buffer = noiseBuffer(ctx, 0.3, false);
-      const hp = ctx.createBiquadFilter();
-      hp.type = 'highpass';
-      hp.frequency.setValueAtTime(900, t);
-      hp.frequency.exponentialRampToValueAtTime(220, t + 0.18);
-      const cg = ctx.createGain();
-      cg.gain.setValueAtTime(0.0001, t);
-      cg.gain.exponentialRampToValueAtTime(peak, t + 0.004);
-      cg.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
-      crack.connect(hp).connect(cg).connect(out);
+      crack.buffer = noiseBuffer(ctx, 0.2, false);
+      const crackBand = ctx.createBiquadFilter();
+      crackBand.type = 'bandpass';
+      crackBand.frequency.value = 2000;
+      crackBand.Q.value = 0.45;
+      const crackGain = ctx.createGain();
+      crackGain.gain.setValueAtTime(0.0001, t);
+      crackGain.gain.exponentialRampToValueAtTime(peak * 0.9, t + 0.003);
+      crackGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
+      crack.connect(crackBand).connect(crackGain);
+      crackGain.connect(out);
+      crackGain.connect(send);
       crack.start(t);
-      crack.stop(t + 0.32);
+      crack.stop(t + 0.1);
 
-      // The body of it, falling away over a second and a half.
+      // 3. The body: the pressure wave itself, chesty and fast to arrive, falling to nothing as
+      //    the lowpass closes down to the rumble.
       const blast = ctx.createBufferSource();
-      blast.buffer = noiseBuffer(ctx, 2.2, true);
-      const lp = ctx.createBiquadFilter();
-      lp.type = 'lowpass';
-      lp.frequency.setValueAtTime(700, t);
-      lp.frequency.exponentialRampToValueAtTime(70, t + 1.6);
-      const bg = ctx.createGain();
-      bg.gain.setValueAtTime(0.0001, t);
-      bg.gain.exponentialRampToValueAtTime(peak * 0.8, t + 0.025);
-      bg.gain.exponentialRampToValueAtTime(peak * 0.25, t + 0.5);
-      bg.gain.exponentialRampToValueAtTime(0.0001, t + 2.0);
-      blast.connect(lp).connect(bg).connect(out);
+      blast.buffer = noiseBuffer(ctx, 1.6, true);
+      const blastLp = ctx.createBiquadFilter();
+      blastLp.type = 'lowpass';
+      blastLp.frequency.setValueAtTime(900, t);
+      blastLp.frequency.exponentialRampToValueAtTime(60, t + 1.2);
+      const blastGain = ctx.createGain();
+      blastGain.gain.setValueAtTime(0.0001, t);
+      blastGain.gain.exponentialRampToValueAtTime(peak * 1.7, t + 0.012);
+      blastGain.gain.exponentialRampToValueAtTime(peak * 0.4, t + 0.3);
+      blastGain.gain.exponentialRampToValueAtTime(0.0001, t + 1.4);
+      blast.connect(blastLp).connect(blastGain);
+      blastGain.connect(out);
+      blastGain.connect(send);
       blast.start(t);
-      blast.stop(t + 2.2);
+      blast.stop(t + 1.6);
 
-      // And a sub thump, because 120 mm moves air that a hatchback never will.
+      // 4. The sub under everything. Dry only.
       const sub = ctx.createOscillator();
       sub.type = 'sine';
-      sub.frequency.setValueAtTime(90, t);
-      sub.frequency.exponentialRampToValueAtTime(34, t + 0.5);
-      const sg = ctx.createGain();
-      sg.gain.setValueAtTime(0.0001, t);
-      sg.gain.exponentialRampToValueAtTime(peak * 0.6, t + 0.015);
-      sg.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
-      sub.connect(sg).connect(out);
+      sub.frequency.setValueAtTime(80, t);
+      sub.frequency.exponentialRampToValueAtTime(30, t + 0.45);
+      const subGain = ctx.createGain();
+      subGain.gain.setValueAtTime(0.0001, t);
+      subGain.gain.exponentialRampToValueAtTime(peak * 0.9, t + 0.012);
+      subGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+      sub.connect(subGain).connect(out);
       sub.start(t);
-      sub.stop(t + 1.0);
+      sub.stop(t + 0.75);
+
+      // 5. The breech. Four hundred milliseconds later the gun runs back into battery and the
+      //    breech opens: a steel clank, two inharmonic partials over a short click. It is the
+      //    detail that says a machine fired that, not a sound effect.
+      const t2 = t + 0.4;
+      for (const [freq, level] of [
+        [1150, 0.28],
+        [2760, 0.16],
+      ] as const) {
+        const ring = ctx.createOscillator();
+        ring.type = 'sine';
+        ring.frequency.value = freq;
+        const ringGain = ctx.createGain();
+        ringGain.gain.setValueAtTime(0.0001, t2);
+        ringGain.gain.exponentialRampToValueAtTime(peak * level, t2 + 0.002);
+        ringGain.gain.exponentialRampToValueAtTime(0.0001, t2 + 0.09);
+        ring.connect(ringGain);
+        ringGain.connect(out);
+        ringGain.connect(send);
+        ring.start(t2);
+        ring.stop(t2 + 0.1);
+      }
+      const clank = ctx.createBufferSource();
+      clank.buffer = noiseBuffer(ctx, 0.02, false);
+      const clankHp = ctx.createBiquadFilter();
+      clankHp.type = 'highpass';
+      clankHp.frequency.value = 1500;
+      const clankGain = ctx.createGain();
+      clankGain.gain.setValueAtTime(peak * 0.3, t2);
+      clankGain.gain.exponentialRampToValueAtTime(0.0001, t2 + 0.012);
+      clank.connect(clankHp).connect(clankGain).connect(out);
+      clank.start(t2);
+      clank.stop(t2 + 0.02);
     },
     crank() {
       const ctx = mixer.context;
@@ -443,18 +590,12 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
       for (const l of layers.values()) {
         l.source?.stop();
         l.source?.disconnect();
-        l.synth?.dispose?.();
-        for (const n of l.synth?.nodes ?? []) {
-          try {
-            (n as OscillatorNode).stop?.();
-          } catch {
-            /* already stopped */
-          }
-          n.disconnect();
-        }
+        if (l.synth) teardownSynth(l.synth);
         l.gain.disconnect();
       }
       layers.clear();
+      blastVerb?.disconnect();
+      blastVerb = null;
     },
   };
 }

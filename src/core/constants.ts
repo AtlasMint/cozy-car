@@ -273,7 +273,7 @@ export const AUDIO = {
    * against the engine, which is why it shouted: rain at 0.55 beside an engine at 0.5 is not
    * equal loudness, because rain is broadband and an engine is harmonic.
    */
-  LEVELS: { engine: 0.5, roadNoise: 0.45, rain: 0.42, wind: 0.26, ambience: 0.22, thunder: 0.55, crank: 0.4, gun: 0.45 },
+  LEVELS: { engine: 0.5, roadNoise: 0.45, rain: 0.42, wind: 0.26, ambience: 0.22, thunder: 0.55, crank: 0.4, gun: 0.62 },
   /**
    * NOTE ON HEADROOM. There is no limiter between the master fader and the destination, so the
    * sum of the buses is what reaches the output. Measured at the master tap, the camper in Focus

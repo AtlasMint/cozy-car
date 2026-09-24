@@ -1,0 +1,92 @@
+import { mulberry32 } from '../util/math';
+
+/**
+ * Generated audio textures, written out sample by sample the way rain.ts writes rain: pure
+ * functions of a seed, normalised to a fixed level, and loopable where they loop. Being pure,
+ * their statistics can be asserted; see tests/textures.test.ts.
+ */
+
+const rms = (b: Float32Array): number => {
+  let s = 0;
+  for (let i = 0; i < b.length; i++) s += b[i]! * b[i]!;
+  return Math.sqrt(s / b.length);
+};
+
+const normalise = (b: Float32Array<ArrayBuffer>, target: number): Float32Array<ArrayBuffer> => {
+  const r = rms(b);
+  if (r > 1e-9) {
+    const g = target / r;
+    for (let i = 0; i < b.length; i++) b[i] = b[i]! * g;
+  }
+  return b;
+};
+
+/**
+ * Track clatter: what a tracked vehicle's running gear sounds like when it moves.
+ *
+ * Each link engaging a sprocket or slapping a road wheel is a metallic impact — two decaying
+ * partials in an inharmonic ratio, which is what makes steel ring rather than hum, over a tiny
+ * broadband click. Impacts are placed at `rate` per second by a seeded PRNG and wrap past the
+ * end with a modulo, so the buffer loops seamlessly and its playback rate can be driven by
+ * speed to make the clatter quicken.
+ */
+export function trackBuffer(sampleRate: number, seconds: number, rate: number, seed: number): Float32Array<ArrayBuffer> {
+  const len = Math.max(1, Math.floor(sampleRate * seconds));
+  const out = new Float32Array(new ArrayBuffer(len * 4));
+  const rng = mulberry32(seed);
+  const hits = Math.max(0, Math.round(rate * seconds));
+  for (let h = 0; h < hits; h++) {
+    const start = Math.floor(rng() * len);
+    // Log-uniform across an octave and a half of steel.
+    const f1 = 520 * Math.pow(2.7, rng());
+    // 2.37 is not a harmonic of anything, which is the point: metal rings inharmonically.
+    const f2 = f1 * 2.37;
+    const tau = 0.008 + rng() * 0.014;
+    const amp = 0.55 + rng() * 0.45;
+    const w1 = (2 * Math.PI * f1) / sampleRate;
+    const w2 = (2 * Math.PI * f2) / sampleRate;
+    const ph1 = rng() * Math.PI * 2;
+    const ph2 = rng() * Math.PI * 2;
+    const decay = Math.exp(-1 / (tau * sampleRate));
+    const dur = Math.min(len, Math.ceil(6 * tau * sampleRate));
+    let env = amp;
+    for (let i = 0; i < dur; i++) {
+      // The click is only the first millisecond; after that it is all ring.
+      const click = i < sampleRate * 0.001 ? 0.5 * (rng() * 2 - 1) : 0;
+      const s = 0.62 * Math.sin(w1 * i + ph1) + 0.38 * Math.sin(w2 * i + ph2) + click;
+      const j = (start + i) % len;
+      out[j] = out[j]! + env * s;
+      env *= decay;
+    }
+  }
+  return normalise(out, 0.18);
+}
+
+/**
+ * The impulse response of a gun going off outdoors: nothing for the first few tens of
+ * milliseconds while the direct sound passes, then reflections off the ground and the treeline
+ * arriving as a dense decaying tail that loses its top end as it goes. A ConvolverNode fed with
+ * this turns a dry burst into something that happened in a place.
+ */
+export function blastImpulse(sampleRate: number, seconds: number, seed: number): Float32Array<ArrayBuffer> {
+  const len = Math.max(1, Math.floor(sampleRate * seconds));
+  const out = new Float32Array(new ArrayBuffer(len * 4));
+  const rng = mulberry32(seed);
+  const preDelay = Math.floor(sampleRate * 0.035);
+  const tau = 0.55;
+  let lp = 0;
+  for (let i = preDelay; i < len; i++) {
+    const t = (i - preDelay) / sampleRate;
+    const w = rng() * 2 - 1;
+    // Air and ground absorb treble first, so the reflections darken as they age: the one-pole
+    // closes from about 5 kHz down toward 300 Hz over the tail.
+    const cutoff = 300 + 4700 * Math.exp(-t / 0.4);
+    const k = 1 - Math.exp((-2 * Math.PI * cutoff) / sampleRate);
+    lp += k * (w - lp);
+    // A handful of discrete early reflections stand proud of the diffuse tail.
+    const early = t < 0.25 && rng() < 0.002 ? 2.5 : 1;
+    out[i] = lp * Math.exp(-t / tau) * early;
+  }
+  // Level so the wet return sits alongside the dry burst rather than swamping it.
+  return normalise(out, 0.05);
+}

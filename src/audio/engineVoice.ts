@@ -78,6 +78,16 @@ export function cycleHz(rpm: number): number {
   return rpm / 120;
 }
 
+/**
+ * Turbocharger whine pitch for a given load. Boost tracks load, not crank speed — a turbo at
+ * idle on a downhill is quiet however fast the engine turns — so this is a function of load
+ * alone. Pure.
+ */
+export function turboHz(turbo: NonNullable<EngineProfile['turbo']>, load: number): number {
+  const k = Math.min(1, Math.max(0, load));
+  return turbo.freq.idle + (turbo.freq.loaded - turbo.freq.idle) * k;
+}
+
 export interface EngineVoice {
   output: AudioNode;
   /** rpm drives the pulse rate; load is 0 at idle and 1 under full load. */
@@ -238,6 +248,31 @@ export function createEngineVoice(ctx: AudioContext, p: EngineProfile): EngineVo
   // Block / knock band — most of what makes a diesel sound like a diesel.
   if (p.knock.gain > 0.001) gateNoise(p.knock.freq, p.knock.q, 'bandpass', p.knock.gain);
 
+  // --- turbocharger, if this engine has one. A sawtooth through a resonant bandpass that
+  // tracks the same pitch: a tone with harmonics and a whistle on top, which is what a turbine
+  // wheel at sixty thousand rpm sounds like through a duct. Every parameter is set with the
+  // spool time as its time constant, so the whine swells and dies after the throttle does.
+  let turbo: { osc: OscillatorNode; bp: BiquadFilterNode; g: GainNode } | null = null;
+  if (p.turbo) {
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.value = turboHz(p.turbo, 0);
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = osc.frequency.value;
+    bp.Q.value = 6;
+    const g = ctx.createGain();
+    g.gain.value = p.turbo.gain.idle;
+    // A little of the idle jitter on the turbine too, so the whistle is not a test tone.
+    const wobble = ctx.createGain();
+    wobble.gain.value = 40;
+    jitterLp.connect(wobble).connect(osc.detune);
+    osc.connect(bp).connect(g).connect(out);
+    osc.start();
+    nodes.push(osc, bp, g, wobble);
+    turbo = { osc, bp, g };
+  }
+
   oscIdle.start();
   oscLoad.start();
   window.start();
@@ -259,6 +294,12 @@ export function createEngineVoice(ctx: AudioContext, p: EngineProfile): EngineVo
       intake.depthGain.gain.setTargetAtTime(p.intake.idle + (p.intake.loaded - p.intake.idle) * k, t, 0.1);
       // Engines are least stable at idle, so irregularity falls as load rises.
       jitterGain.gain.setTargetAtTime((p.irregularity.idle + (p.irregularity.loaded - p.irregularity.idle) * k) * 900, t, 0.2);
+      if (turbo && p.turbo) {
+        const hz = turboHz(p.turbo, k);
+        turbo.osc.frequency.setTargetAtTime(hz, t, p.turbo.spoolS);
+        turbo.bp.frequency.setTargetAtTime(hz, t, p.turbo.spoolS);
+        turbo.g.gain.setTargetAtTime(p.turbo.gain.idle + (p.turbo.gain.loaded - p.turbo.gain.idle) * k, t, p.turbo.spoolS);
+      }
       const drive = Math.round(k * 8) / 8;
       if (drive !== lastDrive) {
         lastDrive = drive;

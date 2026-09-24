@@ -172,6 +172,26 @@ export interface EngineProfile {
   tick: { gain: number; freq: number };
   intake: { idle: number; loaded: number; freq: number };
   crank: { from: number; to: number; ms: number };
+  /**
+   * A turbocharger: a whine whose pitch and level follow boost — which is to say load, far more
+   * than crank speed — and which lags the throttle by `spoolS`. Absent on anything without one.
+   */
+  turbo?: {
+    freq: { idle: number; loaded: number };
+    gain: { idle: number; loaded: number };
+    spoolS: number;
+  };
+  /**
+   * Tracked running gear in place of tyres. The road layer becomes link clatter that quickens
+   * with speed, under a squeal from the sprockets. Absent on anything with wheels.
+   */
+  tracks?: {
+    /** Impacts per second in the texture at playback rate 1; speed scales the rate from here. */
+    clatterRate: number;
+    /** Speed, m/s, at which the clatter plays at rate 1. */
+    speedForRate1: number;
+    squeal: { freq: number; q: number; gain: number };
+  };
   /** Multipliers on the shared AUDIO.LEVELS. */
   gain: { engine: number; road: number; wind: number };
   /** Legacy: playbackRate for a recorded loop, if one is ever added. */
@@ -717,6 +737,13 @@ export const TANK: VehicleSpec = {
     tick: { gain: 0.05, freq: 3200 },
     intake: { idle: 0.07, loaded: 0.34, freq: 420 },
     crank: { from: 12, to: 34, ms: 1700 },
+    // Two big turbos. The whine is what a modern tank is recognised by from a distance — an
+    // Abrams is a turbine and is nothing but whine — and it is the one thing the pulse train
+    // cannot produce on its own. Pitch and level follow load; the spool lag is why it swells
+    // after the throttle rather than with it.
+    turbo: { freq: { idle: 1150, loaded: 2600 }, gain: { idle: 0.035, loaded: 0.16 }, spoolS: 0.6 },
+    // Steel links over steel sprockets. A 160 Hz hum is a tyre on tarmac, and this has neither.
+    tracks: { clatterRate: 28, speedForRate1: 8, squeal: { freq: 1750, q: 14, gain: 0.42 } },
     // The tracks are the loudest thing about it, but only by a little. Measured at the master
     // tap, 1.3/1.4 made the tank in Focus under thunder the loudest thing the app can produce,
     // and the mix has no limiter to catch it — see the note in constants.AUDIO.
