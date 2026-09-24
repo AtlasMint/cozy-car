@@ -15,6 +15,7 @@ import { AUDIO, INTERACTION, MOTION, QUALITY, RENDER, SPEED } from './core/const
 import { createOverlay } from './ui/overlay';
 import { createCurtain } from './ui/curtain';
 import { createStartScreen } from './ui/startScreen';
+import { createSettingsMenu } from './ui/settingsMenu';
 import { createModeToggle } from './ui/modeToggle';
 import { createVehiclePicker, parseVehicleHash } from './ui/vehiclePicker';
 import { createWeatherBadge } from './ui/weatherBadge';
@@ -74,6 +75,8 @@ lighting.setVehicle(bootSpec);
 
 const overlay = createOverlay(store);
 const curtain = createCurtain(overlay);
+// The controls row is row-reverse, so the first one appended sits furthest right.
+createSettingsMenu(overlay, store);
 createModeToggle(overlay, store);
 const picker = createVehiclePicker(overlay, store);
 createVolumeControl(overlay, store);

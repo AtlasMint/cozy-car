@@ -1,6 +1,7 @@
 import type { Store, VehicleId } from '../core/store';
 import { VEHICLES, VEHICLE_ORDER } from '../core/vehicles';
 import { el, type Overlay } from './overlay';
+import { tip } from './tooltip';
 
 /**
  * The three-way vehicle control, mirroring modeToggle: a `ui-seg` group styled purely off
@@ -28,10 +29,11 @@ export function createVehiclePicker(overlay: Overlay, store: Store): VehiclePick
   status.style.cssText = 'position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);';
 
   const buttons = new Map<VehicleId, HTMLButtonElement>();
+  const untips: (() => void)[] = [];
   for (const id of VEHICLE_ORDER) {
     const b = el('button', undefined, VEHICLES[id].label);
     b.type = 'button';
-    b.title = `${VEHICLES[id].label} — press V to cycle`;
+    untips.push(tip(b, `${VEHICLES[id].label}. Press V to cycle.`));
     b.addEventListener('click', () => {
       if (seg.getAttribute('aria-busy') === 'true') return;
       store.set({ vehicle: id });
@@ -75,6 +77,7 @@ export function createVehiclePicker(overlay: Overlay, store: Store): VehiclePick
     },
     dispose() {
       unsub();
+      for (const u of untips) u();
       window.removeEventListener('keydown', onKey);
       seg.remove();
     },

@@ -1,10 +1,21 @@
 import { AUDIO } from '../core/constants';
-import type { Store } from '../core/store';
+import { BUS_LABEL, BUS_NAMES, BUS_STORE_KEY, type Bus } from '../audio/mixer';
+import type { AppState, Store } from '../core/store';
+import { createMenu, menuRow } from './menu';
 import { el, type Overlay } from './overlay';
+import { tip } from './tooltip';
+
+/** What each group holds, said where the slider for it is. */
+const BUS_TIP: Readonly<Record<Bus, string>> = {
+  engine: 'Engine, exhaust and tyres',
+  weather: 'Rain, wind and thunder',
+  ambience: 'The world outside the car',
+  music: "The radio. Spotify's own volume lives inside its player.",
+};
 
 /**
- * Bottom-right volume control: a mute button and a slider, both reading and writing the one
- * value `store.masterVolume`.
+ * Bottom-right volume control: a mute button, a slider for everything, and a More menu holding
+ * one slider per group. The main slider is the output level; the menu is the balance.
  *
  * Mute is not a separate flag. Muted *is* zero, so the slider always shows the level you are
  * actually hearing and there is no second state to keep in step with it — which also makes
@@ -53,6 +64,31 @@ export function createVolumeControl(overlay: Overlay, store: Store): { dispose()
   wrap.append(button, input);
   overlay.controls.appendChild(wrap);
 
+  // The balance, behind More. Anchored to the right of the pill so it cannot run off screen.
+  const menu = createMenu(wrap, { label: 'Sound balance', align: 'right' });
+  menu.body.appendChild(el('h3', undefined, 'Balance'));
+  const unsubs: (() => void)[] = [];
+  const untips: (() => void)[] = [tip(menu.trigger, 'Balance the engine, weather, ambience and music')];
+  for (const bus of BUS_NAMES) {
+    const key = BUS_STORE_KEY[bus];
+    const slider = el('input');
+    slider.type = 'range';
+    slider.min = '0';
+    slider.max = '1';
+    slider.step = '0.01';
+    slider.setAttribute('aria-label', `${BUS_LABEL[bus]} volume`);
+    const readout = el('span', 'ui-hint');
+    const paint = (v: number) => {
+      slider.value = String(v);
+      readout.textContent = `${Math.round(v * 100)}%`;
+    };
+    paint(store.get()[key]);
+    slider.addEventListener('input', () => store.set({ [key]: Number(slider.value) } as Partial<AppState>));
+    unsubs.push(store.subscribe(key, paint));
+    untips.push(tip(slider, BUS_TIP[bus]));
+    menu.body.appendChild(menuRow(BUS_LABEL[bus], slider, readout));
+  }
+
   // Where un-muting returns to. Seeded from the boot level so a page that loads muted still
   // un-mutes to something audible.
   let restore = store.get().masterVolume || AUDIO.DEFAULT_VOLUME;
@@ -61,9 +97,7 @@ export function createVolumeControl(overlay: Overlay, store: Store): { dispose()
     const muted = isMuted(v);
     input.value = String(v);
     button.innerHTML = muted ? ICON_MUTED : ICON_ON;
-    const label = muted ? 'Unmute' : 'Mute';
-    button.setAttribute('aria-label', label);
-    button.title = label;
+    button.setAttribute('aria-label', muted ? 'Unmute' : 'Mute');
   };
 
   input.addEventListener('input', () => {
@@ -81,9 +115,16 @@ export function createVolumeControl(overlay: Overlay, store: Store): { dispose()
 
   render(store.get().masterVolume);
   const unsub = store.subscribe('masterVolume', render);
+  untips.push(
+    tip(button, () => (isMuted(store.get().masterVolume) ? 'Unmute' : 'Mute everything')),
+    tip(input, 'Overall volume. Balance the groups under the dots.'),
+  );
   return {
     dispose() {
       unsub();
+      for (const u of unsubs) u();
+      for (const u of untips) u();
+      menu.dispose();
       wrap.remove();
     },
   };

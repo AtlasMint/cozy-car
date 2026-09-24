@@ -3,6 +3,7 @@ import type { WeatherSource } from '../weather/openMeteo';
 import { kindLabel } from '../weather/wmo';
 import { createLocationPicker } from './locationPicker';
 import { el, type Overlay } from './overlay';
+import { tip } from './tooltip';
 
 /**
  * Bottom-left badge: temperature, condition, location and whether the location is a fallback.
@@ -16,7 +17,7 @@ export function createWeatherBadge(overlay: Overlay, store: Store, source: Weath
   card.type = 'button';
   card.setAttribute('aria-haspopup', 'dialog');
   card.setAttribute('aria-expanded', 'false');
-  card.title = 'Change location';
+  const untipCard = tip(card, 'Search for any town, or go back to your own location');
   card.style.textAlign = 'left';
   card.style.borderRadius = 'var(--ui-radius)';
   const live = el('div');
@@ -69,6 +70,7 @@ export function createWeatherBadge(overlay: Overlay, store: Store, source: Weath
     dispose() {
       u1();
       u2();
+      untipCard();
       picker.dispose();
       wrap.remove();
     },

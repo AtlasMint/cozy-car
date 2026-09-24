@@ -54,6 +54,9 @@ const CSS = /* css */ `
 /* A borderless round button that holds an icon instead of a word. */
 #overlay .ui-icon { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; border: 0; background: transparent; border-radius: 999px; backdrop-filter: none; -webkit-backdrop-filter: none; }
 #overlay .ui-icon:hover { background: rgba(242, 227, 201, 0.12); border-color: transparent; }
+/* An icon button standing on its own rather than inside a pill needs the pill's own chrome. */
+#overlay .ui-icon-solo { width: 36px; height: 36px; background: var(--ui-bg); border: 1px solid var(--ui-line); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+#overlay .ui-icon-solo:hover { background: var(--ui-bg-strong); border-color: var(--ui-accent); }
 #overlay .ui-icon svg { display: block; }
 #overlay .ui-seg { display: inline-flex; border: 1px solid var(--ui-line); border-radius: 999px; background: var(--ui-bg); padding: 3px; gap: 2px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
 #overlay .ui-seg button { border: 0; background: transparent; padding: 7px 14px; }
@@ -79,6 +82,7 @@ const CSS = /* css */ `
   #overlay .ui-corner.right button, #overlay .ui-corner.right .ui-check { padding: 7px 10px; }
   #overlay .ui-corner.right .ui-range { padding: 3px 10px 3px 3px; }
   #overlay .ui-icon { width: 26px; height: 26px; }
+  #overlay .ui-icon-solo { width: 32px; height: 32px; }
   #overlay .ui-seg button { padding: 6px 10px; }
   #overlay .ui-range input[type=range] { width: 64px; }
   #overlay .start-inner { transform: translateY(24vh); }

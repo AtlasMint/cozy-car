@@ -30,6 +30,9 @@ const CSS = /* css */ `
 /* Opens upward: every host sits in a bottom corner, on wide screens and narrow ones alike. */
 #overlay .ui-menu { position: absolute; bottom: calc(100% + 10px); width: min(292px, calc(100vw - 32px)); max-height: min(60vh, 460px); overflow-y: auto; padding: 12px; border-radius: 16px; background: var(--ui-bg-strong); border: 1px solid var(--ui-line); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); display: none; flex-direction: column; gap: 12px; z-index: 2; }
 #overlay .ui-menu.is-open { display: flex; }
+/* The popover takes focus on open so Escape and screen readers land in the right place, but a
+   ring around a whole panel is noise — it belongs on the controls inside it. */
+#overlay .ui-menu:focus, #overlay .ui-menu:focus-visible { outline: none; }
 #overlay .ui-menu.align-left { left: 0; }
 #overlay .ui-menu.align-right { right: 0; }
 #overlay .ui-menu h3 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ui-ink-dim); }

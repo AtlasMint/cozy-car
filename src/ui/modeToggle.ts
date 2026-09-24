@@ -1,5 +1,6 @@
 import type { Store, Mode } from '../core/store';
 import { el, type Overlay } from './overlay';
+import { tip } from './tooltip';
 
 /**
  * Two-state control labelled Chill / Focus. Keyboard accessible, aria-pressed, bound to F.
@@ -10,10 +11,11 @@ export function createModeToggle(overlay: Overlay, store: Store): { dispose(): v
   seg.setAttribute('role', 'group');
   seg.setAttribute('aria-label', 'Mode');
   const buttons = new Map<Mode, HTMLButtonElement>();
+  const untips: (() => void)[] = [];
   for (const mode of ['chill', 'focus'] as Mode[]) {
     const b = el('button', undefined, mode === 'chill' ? 'Chill' : 'Focus');
     b.type = 'button';
-    b.title = mode === 'chill' ? 'Parked, engine idling' : 'Driving — press F to toggle';
+    untips.push(tip(b, mode === 'chill' ? 'Parked, engine idling. Press F to switch.' : 'The world scrolls past. Press F to switch.'));
     b.addEventListener('click', () => store.set({ mode }));
     buttons.set(mode, b);
     seg.appendChild(b);
@@ -36,6 +38,7 @@ export function createModeToggle(overlay: Overlay, store: Store): { dispose(): v
   return {
     dispose() {
       unsub();
+      for (const u of untips) u();
       window.removeEventListener('keydown', onKey);
       seg.remove();
     },
