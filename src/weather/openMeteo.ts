@@ -20,6 +20,11 @@ export interface WeatherSource {
   /** Use a chosen place (or `null` to go back to geolocation), then refetch. */
   setLocation(loc: ChosenLocation | null): Promise<void>;
   getLocation(): ChosenLocation | null;
+  /**
+   * Where the weather was last actually fetched for — chosen, geolocated or the fallback. The
+   * radio tuner needs a point on the earth and does not care which of the three it came from.
+   */
+  getCoords(): { lat: number; lon: number } | null;
   stop(): void;
 }
 
@@ -174,6 +179,12 @@ export function createWeatherSource(store: Store, fetchFn: typeof fetch = fetch.
     }
   };
   let chosen = readChosen();
+  // Whatever coordinates the last fetch actually used; seeded from the cache so a reload has
+  // somewhere to point before the network answers.
+  let resolved: { lat: number; lon: number } | null = (() => {
+    const c = readCache();
+    return c ? { lat: c.lat, lon: c.lon } : null;
+  })();
 
   const locate = (): Promise<{ lat: number; lon: number; fallback: boolean }> =>
     new Promise((resolve) => {
@@ -249,6 +260,7 @@ export function createWeatherSource(store: Store, fetchFn: typeof fetch = fetch.
           : cached && cacheMatches && !force
             ? { lat: cached.lat, lon: cached.lon, fallback: cached.state.isFallbackLocation, label: undefined }
             : { ...(await locate()), label: undefined };
+        resolved = { lat: loc.lat, lon: loc.lon };
         const state = await fetchWeather(loc.lat, loc.lon, loc.fallback, loc.label);
         writeCache({ state, lat: loc.lat, lon: loc.lon });
         store.set({ weather: state, weatherStatus: 'ready' });
@@ -286,6 +298,7 @@ export function createWeatherSource(store: Store, fetchFn: typeof fetch = fetch.
       await refresh(true);
     },
     getLocation: () => chosen,
+    getCoords: () => (chosen ? { lat: chosen.lat, lon: chosen.lon } : resolved),
     stop() {
       stopped = true;
       clearInterval(timer);

@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import type { Store } from '../core/store';
 import type { IsoCamera } from '../core/isoCamera';
-import { SPOTIFY } from '../core/constants';
+import { SPOTIFY, WEATHER } from '../core/constants';
+import { createTuner } from '../audio/tuner';
+import type { WeatherSource } from '../weather/openMeteo';
 import { el, type Overlay } from './overlay';
 import { tip } from './tooltip';
 
@@ -86,6 +88,12 @@ const PANEL_CSS = /* css */ `
 #overlay .radio-panel .music input { width: 100%; accent-color: var(--ui-accent); margin: 0; }
 #overlay .radio-panel .music .ui-hint { font-variant-numeric: tabular-nums; }
 #overlay .radio-panel .note { font-size: 12px; }
+#overlay .radio-panel .tuner { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 8px; padding: 8px; border-radius: 12px; border: 1px solid var(--ui-line); background: rgba(255,255,255,0.04); }
+#overlay .radio-panel .dial { min-width: 0; text-align: center; }
+#overlay .radio-panel .dial .name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#overlay .radio-panel .dial .band { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#overlay .radio-panel .tuner button.step { width: 30px; height: 30px; padding: 0; font-size: 17px; line-height: 1; border-radius: 999px; }
+#overlay .radio-panel .tuner button.listen { padding: 7px 12px; font-size: 13px; white-space: nowrap; }
 #overlay .radio-panel .status { font-size: 12px; min-height: 0; }
 #overlay .radio-panel .status[hidden] { display: none; }
 `;
@@ -98,6 +106,7 @@ export function createSpotifyPanel(
   iso: IsoCamera,
   anchor: THREE.Vector3,
   canvas: HTMLCanvasElement,
+  weather: WeatherSource,
 ): SpotifyPanel {
   if (!cssInjected) {
     const style = document.createElement('style');
@@ -195,10 +204,78 @@ export function createSpotifyPanel(
 
   const note = el('div', 'ui-hint note', "Spotify's volume is inside the player above; this slider moves everything else the radio plays.");
 
-  panel.append(header, player, presets, paste, status, musicRow, note);
+  // ------------------------------------------------------------------ live radio
+  const tuner = createTuner();
+  const tunerRow = el('div', 'tuner');
+  const prev = el('button', 'step', '\u2039');
+  prev.type = 'button';
+  prev.setAttribute('aria-label', 'Previous station');
+  const next = el('button', 'step', '\u203a');
+  next.type = 'button';
+  next.setAttribute('aria-label', 'Next station');
+  const dial = el('div', 'dial');
+  const dialName = el('div', 'name', 'Live radio');
+  const dialBand = el('div', 'band ui-hint', 'Stations near you');
+  dial.append(dialName, dialBand);
+  const listen = el('button', 'listen', 'Listen');
+  listen.type = 'button';
+  tunerRow.append(prev, dial, next, listen);
+  // Arrow keys move the dial while any of it has focus, which is what a dial is for.
+  tunerRow.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    e.preventDefault();
+    tuner.step(e.key === 'ArrowRight' ? 1 : -1);
+  });
+
+  const paintTuner = () => {
+    const t = tuner.state();
+    const s = tuner.current();
+    dialName.textContent = t.status === 'loading' ? 'Tuning…' : (s?.name ?? 'Live radio');
+    dialBand.textContent = t.message || (s ? `${s.codec}${s.bitrate ? ` ${s.bitrate}k` : ''}` : 'Stations near you');
+    listen.textContent = t.playing ? 'Stop' : 'Listen';
+    listen.setAttribute('aria-pressed', String(t.playing));
+    const idle = t.status !== 'ready';
+    prev.disabled = idle;
+    next.disabled = idle;
+    listen.disabled = idle;
+  };
+  tuner.onChange(paintTuner);
+  paintTuner();
+
+  prev.addEventListener('click', () => {
+    tuner.step(-1);
+    if (tuner.state().playing) void tuner.play();
+  });
+  next.addEventListener('click', () => {
+    tuner.step(1);
+    if (tuner.state().playing) void tuner.play();
+  });
+  listen.addEventListener('click', () => {
+    if (tuner.state().playing) {
+      tuner.stop();
+      return;
+    }
+    // One source at a time. The embed can only be stopped by clearing its src, which loses its
+    // state — but that state was never recoverable anyway.
+    if (iframe) iframe.src = 'about:blank';
+    void tuner.play();
+  });
+
+  const applyRadioVolume = () => tuner.setVolume(store.get().masterVolume, store.get().volumeMusic);
+  applyRadioVolume();
+
+  const untips = [
+    untipMusic,
+    tip(prev, 'Previous station'),
+    tip(next, 'Next station — or use the arrow keys'),
+    tip(listen, 'Play this station. Stops Spotify, which cannot play at the same time.'),
+  ];
+
+  panel.append(header, player, presets, paste, status, tunerRow, musicRow, note);
   overlay.panels.appendChild(panel);
 
   const play = (ref: SpotifyRef) => {
+    tuner.stop(); // one source at a time
     if (!iframe) {
       iframe = el('iframe');
       iframe.allow = 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture';
@@ -231,11 +308,23 @@ export function createSpotifyPanel(
       }
       const ref = last ? parseSpotify(last) : null;
       if (ref && !iframe) play(ref);
+      // Only ask for stations once someone opens the radio: nobody pays for a list they never
+      // see. The fallback matters — a forced #weather= override never resolves coordinates, and
+      // a tuner with no band is worse than one pointed at the default city.
+      const here = weather.getCoords() ?? WEATHER.FALLBACK_LOCATION;
+      void tuner.load(here.lat, here.lon);
       setTimeout(() => back.focus({ preventScroll: true }), 950);
     }
   };
   const unsubFocus = store.subscribe('focusedObject', (id) => setOpen(id === 'radio'));
-  const unsubVol = store.subscribe('volumeMusic', paintMusic);
+  const unsubs = [
+    store.subscribe('volumeMusic', (v) => {
+      paintMusic(v);
+      applyRadioVolume();
+    }),
+    // The stream lives outside the mixer, so the master fader has to be applied to it by hand.
+    store.subscribe('masterVolume', applyRadioVolume),
+  ];
 
   // Click outside exits; the canvas is outside.
   const onCanvasDown = () => {
@@ -274,8 +363,9 @@ export function createSpotifyPanel(
     },
     dispose() {
       unsubFocus();
-      unsubVol();
-      untipMusic();
+      for (const u of unsubs) u();
+      for (const u of untips) u();
+      tuner.dispose();
       canvas.removeEventListener('pointerdown', onCanvasDown);
       window.removeEventListener('blur', onBlur);
       panel.remove();

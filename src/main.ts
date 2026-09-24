@@ -131,7 +131,7 @@ const raycast = createRaycast(canvas, iso, registry, store, overlay.panels, (id)
 createFocusCamera(iso, registry, store);
 // One stable vector the panel keeps forever; a swap copies the new anchor into it.
 const radioAnchor = new THREE.Vector3().copy(car.radio.face);
-const spotify = createSpotifyPanel(overlay, store, iso, radioAnchor, canvas);
+const spotify = createSpotifyPanel(overlay, store, iso, radioAnchor, canvas, weather);
 store.subscribe('focusedObject', (id) => mixer.duck(id ? AUDIO.DUCK : 1, 400));
 
 // The radio LCD shows the time and the outside temperature while idle.

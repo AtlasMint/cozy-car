@@ -343,6 +343,31 @@ export const INTERACTION = {
   HOVER_EMISSIVE: 0.35,
 } as const;
 
+/**
+ * Live radio, from Radio Browser: free, no key, and it answers with
+ * `access-control-allow-origin: *` so a browser can call it directly.
+ */
+export const RADIO = {
+  /**
+   * The project asks that no single server be hardcoded; this name round-robins across them.
+   * It also asks for a descriptive User-Agent, which a browser will not let fetch set — so we
+   * cannot comply with that one, and say so rather than pretending.
+   */
+  API: 'https://all.api.radio-browser.info',
+  /** Codecs an <audio> element decodes without help. */
+  CODECS: ['MP3', 'AAC', 'AAC+', 'AACP', 'OGG', 'FLAC'] as const,
+  /** How far out "nearby" reaches when working out which country you are in. */
+  GEO_DISTANCE_M: 250_000,
+  /** Nearby stations fetched to derive the country, then the national list, then the tuner. */
+  GEO_LIMIT: 40,
+  COUNTRY_LIMIT: 100,
+  BAND_LIMIT: 60,
+  TIMEOUT_MS: 7000,
+  /** A dead stream is skipped rather than dwelt on; give up after this many in a row. */
+  SKIP_LIMIT: 4,
+  STORAGE_KEY: 'shotgun.radio.v1',
+} as const;
+
 export const SPOTIFY = {
   /**
    * Built-in playlists mapped to the radio's six preset buttons (first four used).
