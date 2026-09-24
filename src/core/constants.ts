@@ -269,6 +269,12 @@ export const AUDIO = {
   /** Duck factor while the radio panel is open. */
   DUCK: 0.35,
   LEVELS: { engine: 0.5, roadNoise: 0.45, rain: 0.55, wind: 0.3, ambience: 0.18, thunder: 0.9, crank: 0.4 },
+  /**
+   * Group levels, between each layer and the master fader. A layer's own level says how loud it
+   * is against its neighbours on the same bus; the bus says how loud that whole group sits in
+   * the scene. Tuned in Phase 5 — these are 1 so the routing change is silent.
+   */
+  BUSES: { engine: 1, weather: 1, ambience: 1, music: 1 },
 } as const;
 
 export const INTERACTION = {

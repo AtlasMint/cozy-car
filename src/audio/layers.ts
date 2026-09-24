@@ -2,7 +2,7 @@ import { AUDIO, MOTION, SPEED } from '../core/constants';
 import { HATCHBACK, type EngineProfile } from '../core/vehicles';
 import { createEngineVoice, type EngineVoice } from './engineVoice';
 import { damp } from '../util/math';
-import type { Mixer } from './mixer';
+import type { Bus, Mixer } from './mixer';
 
 /**
  * Looping ambience layers, each with its own gain. Every layer first tries its file under
@@ -38,6 +38,18 @@ interface Layer {
   synth: { nodes: AudioNode[]; setRate?: (r: number) => void; setEngine?: (rpm: number, load: number) => void; dispose?: () => void } | null;
   level: number;
 }
+
+/**
+ * Which group each layer sits in. Road noise rides the engine bus on purpose: it is the
+ * vehicle's own noise, and nobody wants a separate fader for tyres.
+ */
+const BUS_OF: Record<LayerName, Bus> = {
+  engine: 'engine',
+  roadNoise: 'engine',
+  rain: 'weather',
+  wind: 'weather',
+  ambience: 'ambience',
+};
 
 const FILES: Record<LayerName, string> = {
   engine: 'engine-idle.ogg',
@@ -82,13 +94,14 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
 
   const start = () => {
     const ctx = mixer.context;
-    const master = mixer.master;
-    if (!ctx || !master || started) return;
+    if (!ctx || !mixer.master || started) return;
     started = true;
     for (const name of Object.keys(FILES) as LayerName[]) {
+      const bus = mixer.bus(BUS_OF[name]);
+      if (!bus) continue;
       const gain = ctx.createGain();
       gain.gain.value = 0;
-      gain.connect(master);
+      gain.connect(bus);
       const layer: Layer = { gain, source: null, synth: null, level: 0 };
       layers.set(name, layer);
       void loadOrSynth(ctx, name, layer);
@@ -238,8 +251,8 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
     },
     thunder(strength) {
       const ctx = mixer.context;
-      const master = mixer.master;
-      if (!ctx || !master || ctx.state !== 'running') return;
+      const out = mixer.bus('weather');
+      if (!ctx || !out || ctx.state !== 'running') return;
       // Synthesized rumble: a noise burst through a sweeping lowpass with a long decay.
       const src = ctx.createBufferSource();
       src.buffer = noiseBuffer(ctx, 3.5, true);
@@ -253,14 +266,14 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
       g.gain.exponentialRampToValueAtTime(peak, ctx.currentTime + 0.12);
       g.gain.exponentialRampToValueAtTime(peak * 0.5, ctx.currentTime + 0.9);
       g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 3.4);
-      src.connect(lp).connect(g).connect(master);
+      src.connect(lp).connect(g).connect(out);
       src.start();
       src.stop(ctx.currentTime + 3.5);
     },
     crank() {
       const ctx = mixer.context;
-      const master = mixer.master;
-      if (!ctx || !master) return;
+      const out = mixer.bus('engine');
+      if (!ctx || !out) return;
       // Starter motor: a rising saw with a click train, 0.7 s, then the engine catches.
       const osc = ctx.createOscillator();
       osc.type = 'sawtooth';
@@ -274,7 +287,7 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
       g.gain.exponentialRampToValueAtTime(AUDIO.LEVELS.crank, ctx.currentTime + 0.05);
       g.gain.setValueAtTime(AUDIO.LEVELS.crank, ctx.currentTime + 0.6);
       g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.85);
-      osc.connect(lp).connect(g).connect(master);
+      osc.connect(lp).connect(g).connect(out);
       osc.start();
       osc.stop(ctx.currentTime + 0.9);
       const clicks = ctx.createBufferSource();
@@ -285,7 +298,7 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
       const cg = ctx.createGain();
       cg.gain.setValueAtTime(AUDIO.LEVELS.crank * 0.35, ctx.currentTime);
       cg.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.75);
-      clicks.connect(hp).connect(cg).connect(master);
+      clicks.connect(hp).connect(cg).connect(out);
       clicks.start();
     },
     dispose() {
