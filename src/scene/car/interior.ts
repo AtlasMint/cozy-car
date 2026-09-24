@@ -6,8 +6,8 @@ import type { CarMaterials } from './parts';
 import { lerp } from '../../util/math';
 
 /**
- * Dashboard, dials, steering wheel (right-hand drive), console, both front seats, rear bench,
- * shelf and visors.
+ * Dashboard, dials, steering wheel (right-hand drive), console, both front seats, rear bench
+ * and parcel shelf.
  */
 export interface InteriorRig {
   /** Steering wheel pivot at the hub; the driver's hands are parented here. */
@@ -84,8 +84,10 @@ export function createInterior(b: Builder, m: CarMaterials, v: VehicleSpec): Int
   for (const z of [-0.4, 0.4]) b.spanBox(0.1, 0.12, z - 0.13, z + 0.13, m.fabric, { x: rhx, y: rhy, rz: benchTilt });
   b.spanBox(0.5, 0.02, -W, W, m.vinyl, { x: -1.55, y: 0.985 });
 
-  // Sun visors under the windshield header.
-  for (const z of [-0.45, 0.45]) b.box(0.2, 0.012, 0.3, m.vinyl, { x: 0.05, y: 1.32, z });
+  // No sun visors. They hung under the windshield header at y 1.32, which was fine when there
+  // was a roof to read them against; with the roof gone each one is a 0.2 × 0.3 black plate
+  // floating over the open cabin, and from this camera it lands squarely on the radio. A visor
+  // is roof furniture, so it goes where the roof went.
 
   // Steering wheel (live node) and column.
   const wheelNode = new THREE.Group();

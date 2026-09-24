@@ -302,8 +302,6 @@ export function buildVan(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKit {
   // The shelf the radio sits on, above the bulkhead on the far side only.
   b.box(0.34, 0.04, 0.78, m.cardboard, { x: 1.35, y: 1.22, z: 0.62 });
   for (const z of [0.3, 0.94]) b.box(0.06, 0.34, 0.06, m.vinyl, { x: 1.35, y: 1.05, z });
-  const [rx, ry, rz] = v.anchors.radioFace;
-  b.box(0.02, 0.14, 0.34, m.trim, { x: rx, y: ry, z: rz });
 
   // Dash, binnacle and two dials.
   b.spanBox(0.26, 0.2, -W + 0.05, W - 0.05, m.vinyl, { x: 2.16, y: 1.24 });

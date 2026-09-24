@@ -230,9 +230,8 @@ export function buildSports(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKi
   b.dyn(wheelNode, wheelGeom);
   b.cyl(0.018, 0.018, 0.16, m.vinyl, { x: 0.52, y: 0.73, z: v.cabin.driverZ, rz: 1.31 });
 
-  // Centre stack: the radio, canted toward the camera, plus the gear lever and handbrake.
-  const [rx, ry, rz] = v.anchors.radioFace;
-  b.box(0.015, 0.1, 0.24, m.trim, { x: rx, y: ry, z: rz, rz: -0.61, ry: -0.44 });
+  // Centre stack: the gear lever and handbrake. The radio itself is createRadio's — this used
+  // to draw a second, canted fascia over the top of it, which is what stuck out of the dash.
   b.cyl(0.011, 0.011, 0.16, m.chrome, { x: 0.26, y: 0.42 });
   b.sphere(0.026, m.vinyl, { x: 0.26, y: 0.5 }, 10);
   b.cyl(0.01, 0.01, 0.2, m.vinyl, { x: 0.02, y: 0.42, rz: 0.55 });

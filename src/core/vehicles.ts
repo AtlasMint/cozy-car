@@ -77,7 +77,7 @@ export interface VehicleCabin {
 export interface VehicleAnchors {
   /** Rear face of the radio faceplate; the camera push-in centres on this. */
   radioFace: Vec3;
-  /** Half-extents of the invisible hitbox around the radio. */
+  /** Size of the invisible hitbox around the radio, as a box. */
   radioHitbox: Vec3;
   /** Nudge from the faceplate to the framed centre of the push-in. */
   radioFocusOffset: Vec3;
