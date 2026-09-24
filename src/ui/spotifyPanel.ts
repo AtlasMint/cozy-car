@@ -37,6 +37,36 @@ export function parseSpotify(input: string): SpotifyRef | null {
   return null;
 }
 
+/** The link the mobile Share button hands you. It is not an open.spotify.com URL. */
+export function isShortLink(input: string): boolean {
+  return /^https?:\/\/(spotify\.link|spotify\.app\.link)\/[A-Za-z0-9]+/.test(input.trim());
+}
+
+/**
+ * Resolve a short link to something embeddable.
+ *
+ * It does not answer with a redirect — it answers 200 with an interstitial — so the canonical
+ * URL has to be read out of the response. spotify.link does send CORS headers, so the fetch is
+ * allowed; whether the target is findable in the body is not something this can promise, which
+ * is why every failure path returns null and the caller says so plainly instead of hanging.
+ */
+export async function resolveShortLink(url: string, timeoutMs = 2000, doFetch: typeof fetch = fetch): Promise<SpotifyRef | null> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const res = await doFetch(url, { signal: ctl.signal, redirect: 'follow' });
+    // If it did redirect after all, the final URL is the answer.
+    const viaUrl = parseSpotify(res.url ?? '');
+    if (viaUrl) return viaUrl;
+    // parseSpotify's URL pattern is unanchored, so it finds a link inside a page of markup.
+    return parseSpotify(await res.text());
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export function embedSrc(ref: SpotifyRef): string {
   return `https://open.spotify.com/embed/${ref.type}/${ref.id}?utm_source=generator&theme=0`;
 }
@@ -56,6 +86,8 @@ const PANEL_CSS = /* css */ `
 #overlay .radio-panel .music input { width: 100%; accent-color: var(--ui-accent); margin: 0; }
 #overlay .radio-panel .music .ui-hint { font-variant-numeric: tabular-nums; }
 #overlay .radio-panel .note { font-size: 12px; }
+#overlay .radio-panel .status { font-size: 12px; min-height: 0; }
+#overlay .radio-panel .status[hidden] { display: none; }
 `;
 
 let cssInjected = false;
@@ -86,7 +118,7 @@ export function createSpotifyPanel(
 
   const player = el('div');
   const empty = el('div', 'empty ui-hint');
-  empty.textContent = 'Pick a preset or paste a Spotify link. Spotify plays 30-second previews unless you are signed in with Premium in this browser.';
+  empty.textContent = 'Pick a preset, or paste a link to any song, album or playlist. Spotify plays 30-second previews unless you are signed in with Premium in this browser.';
   let iframe: HTMLIFrameElement | null = null;
   player.appendChild(empty);
 
@@ -100,25 +132,47 @@ export function createSpotifyPanel(
 
   const paste = el('div', 'paste');
   const input = el('input');
-  input.type = 'url';
-  input.placeholder = 'Paste a Spotify link';
+  // Not type=url: `spotify:track:...` is a perfectly good thing to paste and is not a URL, and
+  // the type only buys a mobile keyboard nobody wanted.
+  input.type = 'text';
+  input.placeholder = 'Paste a song, album or playlist link';
   input.setAttribute('aria-label', 'Spotify link');
+  input.autocomplete = 'off';
   const go = el('button', undefined, 'Play');
   go.type = 'button';
-  const submit = () => {
-    const ref = parseSpotify(input.value);
+  const status = el('div', 'status ui-hint');
+  status.setAttribute('role', 'status');
+  status.hidden = true;
+  const say = (text: string) => {
+    status.textContent = text;
+    status.hidden = text.length === 0;
+  };
+  const submit = async () => {
+    const raw = input.value.trim();
+    if (!raw) return;
+    let ref = parseSpotify(raw);
+    if (!ref && isShortLink(raw)) {
+      say('Opening that short link…');
+      go.disabled = true;
+      ref = await resolveShortLink(raw);
+      go.disabled = false;
+      if (!ref) {
+        say('Short links cannot be opened from here. Open it once in a browser and paste the open.spotify.com address instead.');
+        return;
+      }
+    }
     if (!ref) {
-      input.setCustomValidity('That does not look like a Spotify link');
-      input.reportValidity();
+      say('That does not look like a Spotify link.');
       return;
     }
-    input.setCustomValidity('');
+    say('');
     play(ref);
   };
-  go.addEventListener('click', submit);
+  go.addEventListener('click', () => void submit());
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') submit();
+    if (e.key === 'Enter') void submit();
   });
+  input.addEventListener('input', () => say(''));
   paste.append(input, go);
 
   const musicRow = el('label', 'music');
@@ -141,7 +195,7 @@ export function createSpotifyPanel(
 
   const note = el('div', 'ui-hint note', "Spotify's volume is inside the player above; this slider moves everything else the radio plays.");
 
-  panel.append(header, player, presets, paste, musicRow, note);
+  panel.append(header, player, presets, paste, status, musicRow, note);
   overlay.panels.appendChild(panel);
 
   const play = (ref: SpotifyRef) => {
