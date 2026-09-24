@@ -453,16 +453,18 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
       const out = mixer.bus('engine');
       if (!ctx || !out || ctx.state !== 'running') return;
       const t = ctx.currentTime;
-      // Several layers land within 25 ms of each other, so their peaks add. Measured at the
-      // master tap with the engine silenced and the volume all the way up, this shape peaks at
-      // about 0.85 — around the limiter's threshold, so the limiter stays a backstop rather than
-      // the plan. The 3 ms shock is what sets that peak; the body is what you feel.
+      // Several layers land within 25 ms of each other, so their peaks add. LEVELS.gun scales
+      // all of them together and GUN_MIX sets their balance; the 3 ms shock makes the leading
+      // edge, the body is what you feel. Past a sum of about 0.9 the master limiter is doing the
+      // work rather than backing it up, and the rest of the mix ducks under each shot — which is
+      // a fair thing to want from a tank gun, but it is a choice, not headroom.
       const peak = AUDIO.LEVELS.gun;
+      const mix = AUDIO.GUN_MIX;
       const wet = verb(ctx, out);
       // What goes to the room. Not the sub — low end in a reverb is mud, and outdoors it would
       // not reflect anyway.
       const send = ctx.createGain();
-      send.gain.value = 0.8;
+      send.gain.value = mix.room;
       send.connect(wet);
 
       // 1. The shock. Two milliseconds of full-band impulse. A real muzzle blast starts as a
@@ -471,7 +473,7 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
       const shock = ctx.createBufferSource();
       shock.buffer = noiseBuffer(ctx, 0.01, false);
       const shockGain = ctx.createGain();
-      shockGain.gain.setValueAtTime(peak * 0.9, t);
+      shockGain.gain.setValueAtTime(peak * mix.shock, t);
       shockGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.003);
       shock.connect(shockGain);
       shockGain.connect(out);
@@ -489,7 +491,7 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
       crackBand.Q.value = 0.45;
       const crackGain = ctx.createGain();
       crackGain.gain.setValueAtTime(0.0001, t);
-      crackGain.gain.exponentialRampToValueAtTime(peak * 0.9, t + 0.003);
+      crackGain.gain.exponentialRampToValueAtTime(peak * mix.crack, t + 0.003);
       crackGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.07);
       crack.connect(crackBand).connect(crackGain);
       crackGain.connect(out);
@@ -507,8 +509,8 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
       blastLp.frequency.exponentialRampToValueAtTime(60, t + 1.2);
       const blastGain = ctx.createGain();
       blastGain.gain.setValueAtTime(0.0001, t);
-      blastGain.gain.exponentialRampToValueAtTime(peak * 1.7, t + 0.012);
-      blastGain.gain.exponentialRampToValueAtTime(peak * 0.4, t + 0.3);
+      blastGain.gain.exponentialRampToValueAtTime(peak * mix.blast, t + 0.012);
+      blastGain.gain.exponentialRampToValueAtTime(peak * mix.blastTail, t + 0.3);
       blastGain.gain.exponentialRampToValueAtTime(0.0001, t + 1.4);
       blast.connect(blastLp).connect(blastGain);
       blastGain.connect(out);
@@ -523,7 +525,7 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
       sub.frequency.exponentialRampToValueAtTime(30, t + 0.45);
       const subGain = ctx.createGain();
       subGain.gain.setValueAtTime(0.0001, t);
-      subGain.gain.exponentialRampToValueAtTime(peak * 0.9, t + 0.012);
+      subGain.gain.exponentialRampToValueAtTime(peak * mix.sub, t + 0.012);
       subGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
       sub.connect(subGain).connect(out);
       sub.start(t);
@@ -531,36 +533,40 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
 
       // 5. The breech. Four hundred milliseconds later the gun runs back into battery and the
       //    breech opens: a steel clank, two inharmonic partials over a short click. It is the
-      //    detail that says a machine fired that, not a sound effect.
-      const t2 = t + 0.4;
-      for (const [freq, level] of [
-        [1150, 0.28],
-        [2760, 0.16],
-      ] as const) {
-        const ring = ctx.createOscillator();
-        ring.type = 'sine';
-        ring.frequency.value = freq;
-        const ringGain = ctx.createGain();
-        ringGain.gain.setValueAtTime(0.0001, t2);
-        ringGain.gain.exponentialRampToValueAtTime(peak * level, t2 + 0.002);
-        ringGain.gain.exponentialRampToValueAtTime(0.0001, t2 + 0.09);
-        ring.connect(ringGain);
-        ringGain.connect(out);
-        ringGain.connect(send);
-        ring.start(t2);
-        ring.stop(t2 + 0.1);
+      //    detail that says a machine fired that, not a sound effect — and GUN_MIX.breech is
+      //    where you disagree. At 0 none of this is built.
+      if (mix.breech > 0) {
+        const t2 = t + 0.4;
+        // Shares of the breech level, in the proportions a struck block of steel has.
+        for (const [freq, share] of [
+          [1150, 1.4],
+          [2760, 0.8],
+        ] as const) {
+          const ring = ctx.createOscillator();
+          ring.type = 'sine';
+          ring.frequency.value = freq;
+          const ringGain = ctx.createGain();
+          ringGain.gain.setValueAtTime(0.0001, t2);
+          ringGain.gain.exponentialRampToValueAtTime(peak * mix.breech * share, t2 + 0.002);
+          ringGain.gain.exponentialRampToValueAtTime(0.0001, t2 + 0.09);
+          ring.connect(ringGain);
+          ringGain.connect(out);
+          ringGain.connect(send);
+          ring.start(t2);
+          ring.stop(t2 + 0.1);
+        }
+        const clank = ctx.createBufferSource();
+        clank.buffer = noiseBuffer(ctx, 0.02, false);
+        const clankHp = ctx.createBiquadFilter();
+        clankHp.type = 'highpass';
+        clankHp.frequency.value = 1500;
+        const clankGain = ctx.createGain();
+        clankGain.gain.setValueAtTime(peak * mix.breech, t2);
+        clankGain.gain.exponentialRampToValueAtTime(0.0001, t2 + 0.012);
+        clank.connect(clankHp).connect(clankGain).connect(out);
+        clank.start(t2);
+        clank.stop(t2 + 0.02);
       }
-      const clank = ctx.createBufferSource();
-      clank.buffer = noiseBuffer(ctx, 0.02, false);
-      const clankHp = ctx.createBiquadFilter();
-      clankHp.type = 'highpass';
-      clankHp.frequency.value = 1500;
-      const clankGain = ctx.createGain();
-      clankGain.gain.setValueAtTime(peak * 0.3, t2);
-      clankGain.gain.exponentialRampToValueAtTime(0.0001, t2 + 0.012);
-      clank.connect(clankHp).connect(clankGain).connect(out);
-      clank.start(t2);
-      clank.stop(t2 + 0.02);
     },
     crank() {
       const ctx = mixer.context;

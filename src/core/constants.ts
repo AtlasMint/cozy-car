@@ -273,7 +273,32 @@ export const AUDIO = {
    * against the engine, which is why it shouted: rain at 0.55 beside an engine at 0.5 is not
    * equal loudness, because rain is broadband and an engine is harmonic.
    */
-  LEVELS: { engine: 0.5, roadNoise: 0.45, rain: 0.42, wind: 0.26, ambience: 0.22, thunder: 0.55, crank: 0.4, gun: 0.62 },
+  LEVELS: { engine: 0.5, roadNoise: 0.45, rain: 0.42, wind: 0.26, ambience: 0.22, thunder: 0.55, crank: 0.4, gun: 6 },
+  /**
+   * The shot, component by component, as multiples of LEVELS.gun — which stays the one knob for
+   * how loud the whole thing is. These are the knob for its *shape*, and any one of them set to
+   * 0 silences that part and leaves the rest standing.
+   */
+  GUN_MIX: {
+    /** Three milliseconds of full-band impulse. This is what sets the leading edge. */
+    shock: 0.75,
+    /** The snap. */
+    crack: 0.9,
+    /** The pressure body — the part you feel rather than hear. */
+    blast: 2,
+    /** What the body has fallen to 300 ms in, before the lowpass closes it down to rumble. */
+    blastTail: 0.4,
+    /** Weight underneath. Dry only: low end in a reverb is mud. */
+    sub: 0.9,
+    /**
+     * The breech running back into battery 0.4 s after the shot — a clank and two partials.
+     * 0 skips building those nodes at all, which is how it is left: the mechanism is a nice
+     * detail on paper and a tick on the end of every shot in practice. 0.2 restores it.
+     */
+    breech: 0,
+    /** How much of the shot is sent to the room. 0 makes it anechoic. */
+    room: 0.8,
+  },
   /**
    * NOTE ON HEADROOM. There is no limiter between the master fader and the destination, so the
    * sum of the buses is what reaches the output. Measured at the master tap, the camper in Focus
