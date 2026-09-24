@@ -190,6 +190,8 @@ export interface EngineProfile {
     clatterRate: number;
     /** Speed, m/s, at which the clatter plays at rate 1. */
     speedForRate1: number;
+    /** Level of the link clatter. 0 silences it and skips generating the texture entirely. */
+    clatterGain: number;
     squeal: { freq: number; q: number; gain: number };
   };
   /** Multipliers on the shared AUDIO.LEVELS. */
@@ -743,7 +745,11 @@ export const TANK: VehicleSpec = {
     // after the throttle rather than with it.
     turbo: { freq: { idle: 1150, loaded: 2600 }, gain: { idle: 0.035, loaded: 0.16 }, spoolS: 0.6 },
     // Steel links over steel sprockets. A 160 Hz hum is a tyre on tarmac, and this has neither.
-    tracks: { clatterRate: 28, speedForRate1: 8, squeal: { freq: 1750, q: 14, gain: 0.42 } },
+    // clatterGain is 0: the modal strike in textures.ts measures like steel — bright partials,
+    // a long ring, the higher ones dying first — and still lands on the ear as something hollow
+    // and wooden. Until that is solved the sprocket squeal carries the layer on its own. The
+    // generator and its tests stand; this is the one number that brings the clatter back.
+    tracks: { clatterRate: 28, speedForRate1: 8, clatterGain: 0, squeal: { freq: 1750, q: 14, gain: 0.42 } },
     // The tracks are the loudest thing about it, but only by a little. Measured at the master
     // tap, 1.3/1.4 made the tank in Focus under thunder the loudest thing the app can produce,
     // and the mix has no limiter to catch it — see the note in constants.AUDIO.

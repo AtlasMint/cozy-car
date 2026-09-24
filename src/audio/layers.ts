@@ -162,26 +162,34 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
         // Tracks: link clatter whose rate follows speed, and a sprocket squeal over it. The
         // clatter is a generated impact texture (textures.ts) played faster as the tank moves,
         // which also pitches the ring up a little — steel under strain does the same.
-        const data = trackBuffer(ctx.sampleRate, 4, tr.clatterRate, 0x7a11);
-        const buffer = ctx.createBuffer(1, data.length, ctx.sampleRate);
-        buffer.copyToChannel(data, 0);
-        const clatter = ctx.createBufferSource();
-        clatter.buffer = buffer;
-        clatter.loop = true;
-        clatter.playbackRate.value = 0.2;
-        // Only enough to keep the rumble out. A bandpass at 1400 was removing the top two
-        // octaves, which is exactly where steel lives — the texture's own spectrum is the point.
-        const band = ctx.createBiquadFilter();
-        band.type = 'highpass';
-        band.frequency.value = 130;
-        band.Q.value = 0.7;
-        const presence = ctx.createBiquadFilter();
-        presence.type = 'peaking';
-        presence.frequency.value = 3200;
-        presence.Q.value = 0.9;
-        presence.gain.value = 4;
-        clatter.connect(band).connect(presence).connect(out);
-        clatter.start(ctx.currentTime, Math.random() * 4);
+        // ...when it is wanted. At clatterGain 0 the texture is not generated and the layer is
+        // the squeal alone — see the note on the tank's tracks in vehicles.ts.
+        let clatter: AudioBufferSourceNode | null = null;
+        if (tr.clatterGain > 0) {
+          const data = trackBuffer(ctx.sampleRate, 4, tr.clatterRate, 0x7a11);
+          const buffer = ctx.createBuffer(1, data.length, ctx.sampleRate);
+          buffer.copyToChannel(data, 0);
+          clatter = ctx.createBufferSource();
+          clatter.buffer = buffer;
+          clatter.loop = true;
+          clatter.playbackRate.value = 0.2;
+          // Only enough to keep the rumble out. A bandpass at 1400 was removing the top two
+          // octaves, which is exactly where steel lives — the texture's own spectrum is the point.
+          const band = ctx.createBiquadFilter();
+          band.type = 'highpass';
+          band.frequency.value = 130;
+          band.Q.value = 0.7;
+          const presence = ctx.createBiquadFilter();
+          presence.type = 'peaking';
+          presence.frequency.value = 3200;
+          presence.Q.value = 0.9;
+          presence.gain.value = 4;
+          const level = ctx.createGain();
+          level.gain.value = tr.clatterGain;
+          clatter.connect(band).connect(presence).connect(level).connect(out);
+          clatter.start(ctx.currentTime, Math.random() * 4);
+          nodes.push(clatter, band, presence, level);
+        }
 
         const hiss = loopNoise(ctx, false);
         const squeal = ctx.createBiquadFilter();
@@ -200,13 +208,13 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
         lfo.start();
         hiss.connect(squeal).connect(squealGain).connect(out);
         hiss.start();
-        nodes.push(clatter, band, presence, hiss, squeal, squealGain, lfo, lfoDepth);
+        nodes.push(hiss, squeal, squealGain, lfo, lfoDepth);
         return {
           nodes,
           setRoad(speed) {
             const t = ctx.currentTime;
             const rate = Math.min(2.4, Math.max(0.2, speed / tr.speedForRate1));
-            clatter.playbackRate.setTargetAtTime(rate, t, 0.4);
+            clatter?.playbackRate.setTargetAtTime(rate, t, 0.4);
             // Squeal needs real speed before it starts, and then grows with it.
             const k = Math.min(1, Math.max(0, (speed - 2) / 12));
             squealGain.gain.setTargetAtTime(tr.squeal.gain * k, t, 0.5);
