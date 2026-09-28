@@ -90,17 +90,18 @@ vehicle swap uses: the engine cranks in the dark and the fade back reveals the r
 running, or the lot comes up silent. There is no start screen; Park is what it used to stand
 in front of, and any first click or key press is the gesture Web Audio needs.
 
-The lot ([src/scene/world/lot.ts](src/scene/world/lot.ts)) is the vehicle in the middle bay of
-a row of three, an aisle with a lamp ahead of it, a row of empty bays across that, then the
-kerb and a verge with a few trees; another aisle behind; a low wall along the far edge; nobody
-else. Which way it faces is the camera's choice: from the rear-left quarter a prop can stand in
-front of the cabin only if both its x and z are smaller, so anything ahead of the nose or
-beyond the far wall is clear however tall and the near-rear quadrant may hold nothing but
-paint. `clearOfCabin` is that inequality and a test runs it over every standing thing in the
-lot for every vehicle. The camper, parked, has a table set out in front of it — a white top on
-black stands, a chair either side, a lantern with a pool of its own at night — and a moka pot
-steaming on the hob inside, which is where the swivelled passenger seat has been looking since
-v0.4. Every vehicle is framed at the camper's width so the lot reads the same from all three.
+The lot ([src/scene/world/lot.ts](src/scene/world/lot.ts)) is the vehicle nose-in to a kerb in
+the middle bay of a row of three, the aisle behind it, a low wall along the far edge, and
+beyond the kerb a park — grass running forward with trees at every depth and one lamp just
+past the kerb; nobody else. Nose-in is the camera's choice: from the rear-left quarter a prop
+can stand in front of the cabin only if both its x and z are smaller, so anything ahead of the
+nose or beyond the far wall is clear however tall and the near-rear quadrant may hold nothing
+but paint. `clearOfCabin` is that inequality and a test runs it over every standing thing in
+the lot for every vehicle. The camper, parked, has a table set out on the grass in front of it
+— a white top on black stands, a chair either side, a lantern with a pool of its own at night —
+and a moka pot steaming on the hob inside, which is where the swivelled passenger seat has been
+looking since v0.4. Every vehicle is framed at the camper's width so the lot reads the same
+from all three.
 
 The road and the scenery, and the lot, are each a `World`
 ([src/scene/world/world.ts](src/scene/world/world.ts)); both stand behind one face

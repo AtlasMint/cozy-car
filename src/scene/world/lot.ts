@@ -2,19 +2,19 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { LOT, PALETTE } from '../../core/constants';
 import type { VehicleId } from '../../core/store';
-import { VEHICLES, type VehicleDims } from '../../core/vehicles';
+import type { VehicleDims } from '../../core/vehicles';
 import { mulberry32 } from '../../util/math';
 import type { LampHead, World } from './world';
 
 /**
  * An empty parking lot on the same plinth, in the same light, under the same weather.
  *
- * The vehicle sits in the middle bay of a row of three, nose to the painted head of its bay.
- * Ahead of it an aisle with a lamp, then a row of empty bays facing it, then the kerb and a
- * verge with a few trees; behind it another aisle and the heads of another row; a low wall
- * along the far edge. Nothing else: no other cars, no people. Which way the vehicle faces is
- * the camera's choice — see `clearOfCabin` — and it also puts the one place a camper can set a
- * table where nothing of it can come between the lens and the open cabin.
+ * The vehicle sits nose-in to a kerb in the middle bay of a row of three; behind it the aisle
+ * and the heads of another row, along the far edge a low wall, and beyond the kerb a park:
+ * grass running forward with trees at every depth and one lamp just past the kerb. Nothing
+ * else: no other cars, no people. Nose-in is the camera's choice — see `clearOfCabin` — and it
+ * also puts the one place a camper can set a table where nothing of it can come between the
+ * lens and the open cabin.
  *
  * Everything here is one vertex-colour material plus one lamp material, like the scenery, so
  * the lot adds no material key and no light: the lamp head is emissive, and the point light
@@ -218,24 +218,18 @@ function paintSurface(): HTMLCanvasElement {
   ctx.fillStyle = stain;
   ctx.fillRect(X(-7.2), Z(0.1), 2 * px, 2 * px);
 
-  // Bay lines, three rows: the vehicle's, the one across the aisle ahead with its heads facing
-  // back at us, and the heads of one more behind, painted from the far edge of the surface.
+  // Bay lines: the row the vehicle is in, heads at the kerb, and the heads of the row across
+  // the aisle behind, painted from the far edge of the surface up to its own head.
   ctx.fillStyle = PALETTE.MARKING;
   ctx.globalAlpha = B.alpha;
   const lw = B.line * px;
-  const head = LOT.ROW_HEAD_X;
+  const head = LOT.KERB_X;
   const rowBack = head - B.length;
   const behindHead = rowBack - LOT.AISLE;
-  const aheadHead = head + LOT.AISLE;
-  const aheadEnd = Math.min(aheadHead + B.length, LOT.KERB_X);
   for (const z of bayLines(B.width, 3)) {
     ctx.fillRect(X(rowBack), Z(z) - lw / 2, (head - rowBack) * px, lw);
-    ctx.fillRect(X(aheadHead), Z(z) - lw / 2, (aheadEnd - aheadHead) * px, lw);
     ctx.fillRect(X(S.back), Z(z) - lw / 2, (behindHead - S.back) * px, lw);
   }
-  // The heads of the two rows that face an aisle: a line across, so the aisle reads as one.
-  ctx.fillRect(X(head), Z(-1.5 * B.width) - lw / 2, lw, 3 * B.width * px);
-  ctx.fillRect(X(aheadHead), Z(-1.5 * B.width) - lw / 2, lw, 3 * B.width * px);
   ctx.globalAlpha = 1;
 
   // A drain grate at the low point of the aisle.
@@ -297,7 +291,7 @@ export function createLot(maxAnisotropy: number): World {
   const L = LOT.LAMP;
   const poleMat = new THREE.MeshStandardMaterial({ color: '#4A4E52', roughness: 0.7, metalness: 0.3 });
   const poleGeom = merge([at(new THREE.CylinderGeometry(0.05, 0.07, 5.2, 8), L.x, 2.6, L.z), at(new THREE.CylinderGeometry(0.04, 0.04, 0.5, 6).rotateZ(Math.PI / 2), L.x - 0.25, 5.1, L.z)]);
-  // It stands in the aisle, so it stands on something: a concrete base, in the props mesh.
+  // A concrete footing under it, in the props mesh.
   parts.push(colored(at(new THREE.CylinderGeometry(L.base.radius, L.base.radius + 0.04, L.base.height, 12), L.x, L.base.height / 2, L.z), '#BDB7A9'));
   const pole = new THREE.Mesh(poleGeom, poleMat);
   pole.name = 'lot:lamp';
@@ -327,21 +321,6 @@ export function createLot(maxAnisotropy: number): World {
   }
   let shownDressing: VehicleId | null = null;
 
-  // --- The wheel stop under the nose, placed per vehicle: ahead of the front tyre's contact.
-  const stopGeom = new THREE.BoxGeometry(LOT.WHEEL_STOP.length, LOT.WHEEL_STOP.height, LOT.WHEEL_STOP.depth);
-  const stopMat = new THREE.MeshStandardMaterial({ color: '#C9C2B2', roughness: 0.95 });
-  const stop = new THREE.Mesh(stopGeom, stopMat);
-  stop.castShadow = true;
-  stop.receiveShadow = true;
-  stop.name = 'lot:wheelStop';
-  group.add(stop);
-  const placeStop = (id: VehicleId) => {
-    const d = VEHICLES[id].dims;
-    stop.position.set(d.wheelbase / 2 + d.wheelRadius + 0.1 + LOT.WHEEL_STOP.depth / 2, LOT.WHEEL_STOP.height / 2, 0);
-    stop.scale.z = 1;
-  };
-  placeStop('hatchback');
-
   return {
     group,
     update() {
@@ -366,7 +345,6 @@ export function createLot(maxAnisotropy: number): World {
       return 2;
     },
     setVehicle(id) {
-      placeStop(id);
       for (const [vid, d] of Object.entries(dressing)) d.group.visible = vid === id;
       shownDressing = id in dressing ? id : null;
     },
@@ -383,8 +361,6 @@ export function createLot(maxAnisotropy: number): World {
       poleMat.dispose();
       headGeom.dispose();
       lampMat.dispose();
-      stopGeom.dispose();
-      stopMat.dispose();
       lanternMat.dispose();
       for (const d of Object.values(dressing)) d.dispose();
     },

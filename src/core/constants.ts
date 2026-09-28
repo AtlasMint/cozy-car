@@ -102,47 +102,50 @@ export const WORLD = {
 export const LOT = {
   BAY: { width: 2.7, length: 6, line: 0.12, alpha: 0.55 },
   /**
-   * Head of the vehicle's row — paint, not a kerb. Must clear every nose in VEHICLES, not only
-   * the listed ones — a test holds it there — and the longest is 3.5 m from the origin. A 6 m
-   * bay keeps the camper's overhang at the rear to 0.8 m, which is what a camper in a bay
-   * looks like.
+   * Head of the row: the kerb the vehicle is nosed up to. Must clear every nose in VEHICLES,
+   * not only the listed ones — a test holds it there — and the longest is 3.5 m from the
+   * origin. A 6 m bay keeps the camper's overhang at the rear to 0.8 m, which is what a
+   * camper in a bay looks like.
    */
-  ROW_HEAD_X: 4,
-  /** The aisles: one ahead of the vehicle's row, one behind it. */
-  AISLE: 6,
-  /**
-   * Where the lot ends: a kerb beyond the row across the aisle, with the verge past it. The
-   * lot runs forward from the vehicle — aisle, another row of empty bays, then the edge — so
-   * that from the camera it reads as a lot and not as a lay-by.
-   */
-  KERB_X: 16,
+  KERB_X: 4,
   KERB: { height: 0.12, width: 0.25 },
-  /** The painted surface on the slab. The plinth narrows toward the front: half the slab is
-   *  4.33 at the kerb, so the width is what fits there. */
-  SURFACE: { back: -11, front: 16, halfWidth: 4.2 },
+  /** The aisle behind the row, before the next row's heads. */
+  AISLE: 6,
+  /** The painted surface on the slab, up to the kerb. */
+  SURFACE: { back: -11, front: 4, halfWidth: 4.2 },
   SURFACE_Y: 0.012,
-  VERGE: { depth: 4.5, color: '#5F6B4A' },
+  /**
+   * Beyond the kerb, a park: grass running forward as far as the plinth goes, with trees at
+   * every depth so it reads as somewhere rather than a strip. The plinth narrows toward the
+   * front; half the slab is 4.23 where the grass ends.
+   */
+  VERGE: { depth: 12, color: '#5F6B4A' },
   WALL: { height: 0.5, thickness: 0.15 },
-  /** One lamp at the near end of the aisle ahead, far side, on a concrete base. Close enough
-   *  that its point light — STREETLIGHT.distance is 9 m — still pools on the nose at night. */
-  LAMP: { x: 5.4, z: 3.85, base: { radius: 0.32, height: 0.14 } },
+  /** One lamp on the grass just past the kerb, far side, on a concrete footing. Close enough
+   *  that its point light — STREETLIGHT.distance is 9 m — pools on the nose at night. */
+  LAMP: { x: 5.4, z: 3.6, base: { radius: 0.32, height: 0.14 } },
   PINES: [
-    { x: 17.8, z: 3.0 },
-    { x: 18.9, z: -2.7 },
-    { x: 20.0, z: 0.9 },
+    { x: 6.4, z: 3.0 },
+    { x: 7.6, z: -3.3 },
+    { x: 9.2, z: 1.7 },
+    { x: 10.9, z: -2.1 },
+    { x: 12.5, z: 3.3 },
+    { x: 14.1, z: 0.3 },
+    { x: 15.6, z: -3.0 },
   ],
   BUSHES: [
-    { x: 16.9, z: -3.8 },
-    { x: 18.6, z: 1.3 },
+    { x: 5.0, z: -3.9 },
+    { x: 8.4, z: 2.5 },
+    { x: 11.6, z: -3.6 },
+    { x: 13.3, z: 1.1 },
   ],
-  WHEEL_STOP: { length: 1.6, height: 0.1, depth: 0.16 },
   /**
-   * The camper's table, in the aisle directly in front of it: white top on two black stands,
+   * The camper's table, on the grass directly in front of it: white top on two black stands,
    * a chair either side, a lantern on it. Ahead of every nose, so inside the camera rule by
    * the first inequality. `lanternLevel` is the lantern's point light as a share of a
    * streetlight's; it borrows the second of the two the road world uses.
    */
-  PICNIC: { x: 4.75, z: 0, table: { length: 1.4, height: 0.74, width: 0.8 }, lanternLevel: 0.14 },
+  PICNIC: { x: 5.4, z: 0, table: { length: 1.4, height: 0.74, width: 0.8 }, lanternLevel: 0.14 },
   /** Parked, the driver has nowhere to be: the gaps between gestures stretch by this much. */
   GESTURE_GAP_SCALE: 1.5,
   /** Where a resting hand lies, from the hips: forward along the thigh, up onto it, out to its side. */
