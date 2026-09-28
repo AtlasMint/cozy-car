@@ -58,6 +58,8 @@ export interface BodyKit {
   swing: THREE.Group;
   /** Only a vehicle that carries a weapon has one. */
   gun?: Ordnance;
+  /** Something on the stove. Steam rises from here while the vehicle is parked. */
+  steamTip?: THREE.Vector3;
   /** Free anything the body allocated that the Builder does not own — its own materials. */
   dispose?(): void;
 }
@@ -143,7 +145,27 @@ export interface MotionProfile {
   wheelToBody: number;
   wheelToPitch: number;
   rpm: { idle: number; idleJitter: number; cruise: number; wander: number; sweepMs: number; sweepPeak: number };
-  exhaust: { chillRate: number; focusRate: number; life: number; rise: number; drift: number; size: number; grow: number };
+  exhaust: ExhaustProfile;
+}
+
+/**
+ * A plume: puffs per second in each mode, and the life, rise, drift, size and growth of each.
+ * The tailpipe's, and — with no drift and a fraction of the size — a moka pot's steam.
+ */
+export interface ExhaustProfile {
+  chillRate: number;
+  focusRate: number;
+  life: number;
+  rise: number;
+  drift: number;
+  size: number;
+  grow: number;
+  /** How far behind the tip a puff is born. A tailpipe's is 5 cm; a spout's is nothing. */
+  setback?: number;
+  /** The puff's colour and peak alpha. Exhaust is off-white at half; steam against a cream
+   *  wall needs to be cooler and denser to be seen at all. */
+  color?: string;
+  alpha?: number;
 }
 
 /**
@@ -331,6 +353,8 @@ export const HATCHBACK: VehicleSpec = {
     shadowRadius: 3,
     shadowNormalBias: 0.02,
   },
+  // Every vehicle is framed at the camper's width, so the lot reads the same from all three;
+  // radioZoom is scaled by the same factor, so the radio push-in shows exactly what it did.
   camera: {
     viewSize: CAMERA.VIEW_SIZE,
     minViewWidth: CAMERA.MIN_VIEW_WIDTH,
@@ -451,7 +475,8 @@ export const SPORTS: VehicleSpec = {
     shadowRadius: 3,
     shadowNormalBias: 0.02,
   },
-  camera: { viewSize: 4.9, minViewWidth: 5.25, target: [-0.42, 0.46, -0.72], radioZoom: 3.02 },
+  // Framed at the camper's width like the hatchback, and the same push-in.
+  camera: { viewSize: CAMERA.VIEW_SIZE, minViewWidth: CAMERA.MIN_VIEW_WIDTH, target: [-0.42, 0.46, -0.72], radioZoom: INTERACTION.RADIO_ZOOM },
   shelter: { min: [-1.84, 0, -1.01], max: [1.84, 1.26, 1.01] },
   motion: {
     idleHz: 14,

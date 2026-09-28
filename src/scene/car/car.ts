@@ -85,8 +85,11 @@ export function createVehicle(stage: Stage, v: VehicleSpec = HATCHBACK): Vehicle
   stage.wheels.add(wheels.group);
   const driver = createDriverFigure(body.wheelNode, driverRoot, v);
   const idle = createDriverIdle(driver);
-  const exhaust = createExhaust(body.exhaustTip, v.motion);
+  const exhaust = createExhaust(body.exhaustTip, v.motion.exhaust);
   stage.carRoot.add(exhaust.group);
+  // Steam, for a body with something on the stove. Same machinery as the plume, parked only.
+  const steam = body.steamTip ? createExhaust(body.steamTip, MOTION.STEAM, 10) : null;
+  if (steam) stage.carRoot.add(steam.group);
   const rig = createEngineRig(v.motion);
 
   // Air freshener: a damped pendulum forced by the body's accelerations.
@@ -141,6 +144,8 @@ export function createVehicle(stage: Stage, v: VehicleSpec = HATCHBACK): Vehicle
 
       const rate = inp.engine * (v.motion.exhaust.chillRate + (v.motion.exhaust.focusRate - v.motion.exhaust.chillRate) * inp.blend) * inp.coldBoost;
       exhaust.update(inp.dt, rate, inp.speed);
+      // The pot is on while the vehicle is parked and off the moment it is not.
+      steam?.update(inp.dt, inp.mode === 'park' ? MOTION.STEAM.chillRate : MOTION.STEAM.focusRate, 0);
 
       lights = damp(lights, inp.engine > 0.02 ? 1 : 0, MOTION.IGNITION_LIGHTS_LAMBDA, inp.dt);
       body.setLights(lights, lights);
@@ -165,6 +170,7 @@ export function createVehicle(stage: Stage, v: VehicleSpec = HATCHBACK): Vehicle
       driverRoot.visible = on;
       wheels.group.visible = on;
       exhaust.group.visible = on;
+      if (steam) steam.group.visible = on;
     },
     seedLights(k) {
       lights = k;
@@ -191,6 +197,10 @@ export function createVehicle(stage: Stage, v: VehicleSpec = HATCHBACK): Vehicle
       stage.wheels.remove(wheels.group);
       stage.carRoot.remove(exhaust.group);
       exhaust.dispose();
+      if (steam) {
+        stage.carRoot.remove(steam.group);
+        steam.dispose();
+      }
       driver.dispose();
       body.dispose?.();
       built.dispose();

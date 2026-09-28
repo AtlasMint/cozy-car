@@ -44,8 +44,9 @@ describe('the lot', () => {
       for (const p of lotProps()) expect({ prop: p.name, clear: clearOfCabin(p, v.dims) }).toEqual({ prop: p.name, clear: true });
     });
 
-    test(`${id}: the head kerb clears the nose`, () => {
-      expect(LOT.KERB_X).toBeGreaterThan(v.dims.length / 2);
+    test(`${id}: the head of its bay clears the nose`, () => {
+      expect(LOT.ROW_HEAD_X).toBeGreaterThan(v.dims.length / 2);
+      expect(LOT.KERB_X).toBeGreaterThan(LOT.ROW_HEAD_X + LOT.AISLE);
     });
   }
 

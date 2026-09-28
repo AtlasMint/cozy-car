@@ -254,6 +254,20 @@ export function buildVan(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKit {
   b.box(1.05, 0.98, 0.8, m.vinylLight, { x: -1.95, y: floor + 0.52, z: 0.6 });
   b.box(0.26, 0.02, 0.22, m.trim, { x: -1.72, y: floor + 1.08, z: 0.5 });
   for (const z of [0.44, 0.58]) b.add(new THREE.TorusGeometry(0.038, 0.006, 6, 16), m.chrome, { x: -1.72, y: floor + 1.1, z, rx: Math.PI / 2 });
+  // A moka pot on the near ring: octagonal boiler, collar, octagonal top, lid and knob, a
+  // handle on the wall side and a spout toward the room. Steam rises off the spout while the
+  // vehicle is parked; the tip is handed back on the kit for the plume machinery.
+  const potX = -1.72;
+  const potZ = 0.44;
+  const potY = floor + 1.106;
+  b.cyl(0.038, 0.046, 0.075, m.chrome, { x: potX, y: potY + 0.0375, z: potZ }, 8);
+  b.cyl(0.03, 0.03, 0.012, m.trim, { x: potX, y: potY + 0.081, z: potZ }, 8);
+  b.cyl(0.05, 0.036, 0.075, m.chrome, { x: potX, y: potY + 0.1245, z: potZ }, 8);
+  b.cyl(0.05, 0.05, 0.01, m.chrome, { x: potX, y: potY + 0.167, z: potZ }, 8);
+  b.sphere(0.011, m.rubber, { x: potX, y: potY + 0.182, z: potZ });
+  b.box(0.02, 0.05, 0.012, m.rubber, { x: potX, y: potY + 0.12, z: potZ + 0.058 });
+  b.box(0.02, 0.014, 0.012, m.chrome, { x: potX, y: potY + 0.14, z: potZ - 0.052 });
+  const steamTip = new THREE.Vector3(potX, potY + 0.15, potZ - 0.062);
   b.cyl(0.11, 0.11, 0.03, m.chrome, { x: -2.18, y: floor + 1.06, z: 0.62 });
   b.cyl(0.012, 0.012, 0.16, m.chrome, { x: -2.3, y: floor + 1.14, z: 0.62 });
   // Overhead lockers above the window band. The half-metre a high top adds is exactly the
@@ -431,6 +445,7 @@ export function buildVan(b: Builder, m: CarMaterials, v: VehicleSpec): BodyKit {
       m.lcd.emissiveIntensity = k * 0.9;
     },
     exhaustTip: new THREE.Vector3(...v.anchors.exhaustTip),
+    steamTip,
     swing,
   };
 }

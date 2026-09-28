@@ -39,10 +39,13 @@ export const PALETTE = {
 } as const;
 
 export const CAMERA = {
-  /** Metres of world height visible at zoom 1. */
-  VIEW_SIZE: 5.2,
-  /** Narrow viewports widen the view so the car (≈3.9 m on screen) still fits. */
-  MIN_VIEW_WIDTH: 5.4,
+  /**
+   * Metres of world height visible at zoom 1. The camper's framing, for every vehicle: the
+   * small cars used to sit in 5.2 and the lot around them was mostly out of shot.
+   */
+  VIEW_SIZE: 8.0,
+  /** Narrow viewports widen the view so the vehicle still fits. */
+  MIN_VIEW_WIDTH: 8.6,
   /** Straight-line distance from target to camera along the view axis. Kept short so the
    *  scene's FogExp2 densities are tuned around the car rather than around a far camera. */
   DISTANCE: 3.5,
@@ -99,36 +102,47 @@ export const WORLD = {
 export const LOT = {
   BAY: { width: 2.7, length: 6, line: 0.12, alpha: 0.55 },
   /**
-   * Head of the row. Must clear every nose in VEHICLES, not only the listed ones — a test holds
-   * it there — and the longest is 3.5 m from the origin. A 6 m bay keeps the camper's overhang
-   * at the rear to 0.8 m, which is what a camper in a bay looks like.
+   * Head of the vehicle's row — paint, not a kerb. Must clear every nose in VEHICLES, not only
+   * the listed ones — a test holds it there — and the longest is 3.5 m from the origin. A 6 m
+   * bay keeps the camper's overhang at the rear to 0.8 m, which is what a camper in a bay
+   * looks like.
    */
-  KERB_X: 4,
-  KERB: { height: 0.12, width: 0.25 },
-  /** The aisle behind the row, before the next row's heads. */
+  ROW_HEAD_X: 4,
+  /** The aisles: one ahead of the vehicle's row, one behind it. */
   AISLE: 6,
-  /** The painted surface on the slab. The plinth narrows toward the front, so the width is
-   *  what fits at the kerb: half the slab is 4.64 there. */
-  SURFACE: { back: -11, front: 4, halfWidth: 4.2 },
+  /**
+   * Where the lot ends: a kerb beyond the row across the aisle, with the verge past it. The
+   * lot runs forward from the vehicle — aisle, another row of empty bays, then the edge — so
+   * that from the camera it reads as a lot and not as a lay-by.
+   */
+  KERB_X: 16,
+  KERB: { height: 0.12, width: 0.25 },
+  /** The painted surface on the slab. The plinth narrows toward the front: half the slab is
+   *  4.33 at the kerb, so the width is what fits there. */
+  SURFACE: { back: -11, front: 16, halfWidth: 4.2 },
   SURFACE_Y: 0.012,
   VERGE: { depth: 4.5, color: '#5F6B4A' },
   WALL: { height: 0.5, thickness: 0.15 },
-  LAMP: { x: 5.6, z: 3.6 },
+  /** One lamp at the near end of the aisle ahead, far side, on a concrete base. Close enough
+   *  that its point light — STREETLIGHT.distance is 9 m — still pools on the nose at night. */
+  LAMP: { x: 5.4, z: 3.85, base: { radius: 0.32, height: 0.14 } },
   PINES: [
-    { x: 7.0, z: 3.1 },
-    { x: 7.9, z: -3.0 },
+    { x: 17.8, z: 3.0 },
+    { x: 18.9, z: -2.7 },
+    { x: 20.0, z: 0.9 },
   ],
   BUSHES: [
-    { x: 5.0, z: -3.9 },
-    { x: 7.6, z: 0.6 },
+    { x: 16.9, z: -3.8 },
+    { x: 18.6, z: 1.3 },
   ],
   WHEEL_STOP: { length: 1.6, height: 0.1, depth: 0.16 },
   /**
-   * The camper's table, on the verge beside the head kerb, near side — ahead of every nose, so
-   * inside the camera rule by the first inequality. `lanternLevel` is the lantern's point light
-   * as a share of a streetlight's; it borrows the second of the two the road world uses.
+   * The camper's table, in the aisle directly in front of it: white top on two black stands,
+   * a chair either side, a lantern on it. Ahead of every nose, so inside the camera rule by
+   * the first inequality. `lanternLevel` is the lantern's point light as a share of a
+   * streetlight's; it borrows the second of the two the road world uses.
    */
-  PICNIC: { x: 5.1, z: -1.7, table: { length: 1.5, height: 0.74, width: 0.8 }, lanternLevel: 0.14 },
+  PICNIC: { x: 4.75, z: 0, table: { length: 1.4, height: 0.74, width: 0.8 }, lanternLevel: 0.14 },
   /** Parked, the driver has nowhere to be: the gaps between gestures stretch by this much. */
   GESTURE_GAP_SCALE: 1.5,
   /** Where a resting hand lies, from the hips: forward along the thigh, up onto it, out to its side. */
@@ -221,6 +235,12 @@ export const MOTION = {
   RPM: { idle: 750, idleJitter: 40, cruise: 2200, wander: 220, sweepMs: 1200, sweepPeak: 6500 },
   FRESHENER: { length: 0.17, damping: 1.1, pitchGain: 0.9, yGain: 0.5, accelGain: 0.06 },
   EXHAUST: { chillRate: 1.4, focusRate: 3.0, life: 1.7, rise: 0.22, drift: 0.7, size: 0.14, grow: 0.4, coldBoost: 1.2 },
+  /**
+   * Steam off a moka pot, in the exhaust block's shape so the same puff machinery makes it:
+   * small, slow, straight up, and only while parked — chillRate is the parked rate here, and
+   * focusRate is what it does on the road, which is nothing.
+   */
+  STEAM: { chillRate: 4.5, focusRate: 0, life: 1.8, rise: 0.2, drift: 0, size: 0.07, grow: 0.7, setback: 0, color: '#c6d0d8', alpha: 0.9 },
   /** Dash and headlights fade up over this long at ignition. */
   IGNITION_LIGHTS_LAMBDA: 7,
 } as const;
@@ -463,7 +483,8 @@ export const INTERACTION = {
    * lot — arrives promptly once the work behind the black is done.
    */
   MODE_FADE_MS: 1000,
-  RADIO_ZOOM: 3.2,
+  /** 3.2 at the old 5.2 m view; scaled with VIEW_SIZE so the push-in shows what it did. */
+  RADIO_ZOOM: 4.92,
   /** Emissive lift on hover. */
   HOVER_EMISSIVE: 0.35,
 } as const;

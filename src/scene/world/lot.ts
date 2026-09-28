@@ -9,11 +9,12 @@ import type { LampHead, World } from './world';
 /**
  * An empty parking lot on the same plinth, in the same light, under the same weather.
  *
- * The vehicle sits nose-in to a kerb in the middle bay of a row of three; the aisle is behind
- * it, a verge with one lamp post and a couple of trees is ahead of it, and a low wall runs
- * along the far edge. Nothing else: no other cars, no people. The choice of nose-in is the
- * camera's — see `clearOfCabin` — and it also puts the one place a camper can set a table where
- * nothing of it can come between the lens and the open cabin.
+ * The vehicle sits in the middle bay of a row of three, nose to the painted head of its bay.
+ * Ahead of it an aisle with a lamp, then a row of empty bays facing it, then the kerb and a
+ * verge with a few trees; behind it another aisle and the heads of another row; a low wall
+ * along the far edge. Nothing else: no other cars, no people. Which way the vehicle faces is
+ * the camera's choice — see `clearOfCabin` — and it also puts the one place a camper can set a
+ * table where nothing of it can come between the lens and the open cabin.
  *
  * Everything here is one vertex-colour material plus one lamp material, like the scenery, so
  * the lot adds no material key and no light: the lamp head is emissive, and the point light
@@ -57,7 +58,7 @@ export function lotProps(): Aabb[] {
     { name: 'headKerb', min: [kerbX0, 0, -S.halfWidth], max: [kerbX1, K.height, S.halfWidth] },
     { name: 'farWall', min: [S.back, 0, S.halfWidth], max: [kerbX0, LOT.WALL.height, S.halfWidth + LOT.WALL.thickness] },
     { name: 'verge', min: [kerbX1, 0, -S.halfWidth], max: [vergeX1, 0.02, S.halfWidth] },
-    { name: 'lampPost', min: [LOT.LAMP.x - 0.6, 0, LOT.LAMP.z - 0.3], max: [LOT.LAMP.x + 0.1, 5.3, LOT.LAMP.z + 0.3] },
+    { name: 'lampPost', min: [LOT.LAMP.x - 0.6, 0, LOT.LAMP.z - LOT.LAMP.base.radius], max: [LOT.LAMP.x + LOT.LAMP.base.radius, 5.3, LOT.LAMP.z + LOT.LAMP.base.radius] },
   ];
   for (const [i, p] of LOT.PINES.entries()) props.push({ name: `pine${i}`, min: [p.x - 0.9, 0, p.z - 0.9], max: [p.x + 0.9, 3.7, p.z + 0.9] });
   for (const [i, b] of LOT.BUSHES.entries()) props.push({ name: `bush${i}`, min: [b.x - 0.6, 0, b.z - 0.6], max: [b.x + 0.6, 0.7, b.z + 0.6] });
@@ -69,37 +70,41 @@ export function lotProps(): Aabb[] {
   const hw = P.table.width / 2;
   props.push({ name: 'picnicTable', min: [P.x - hl, 0, P.z - hw], max: [P.x + hl, P.table.height, P.z + hw] });
   for (const side of [-1, 1]) props.push({ name: 'chair', min: [P.x - 0.25, 0, P.z + side * (hw + 0.45) - 0.25], max: [P.x + 0.25, 0.85, P.z + side * (hw + 0.45) + 0.25] });
-  props.push({ name: 'cooler', min: [P.x + hl + 0.1, 0, P.z - 0.2], max: [P.x + hl + 0.55, 0.36, P.z + 0.2] });
   props.push({ name: 'lantern', min: [P.x - 0.1, P.table.height, P.z - 0.1], max: [P.x + 0.1, P.table.height + 0.3, P.z + 0.1] });
   return props;
 }
 
 /**
- * The camper's table on the verge: a picnic table, two folding chairs either side of it turned
- * to face each other across it, a cooler at its end and a lantern on it. The lantern's glass is
- * the one part not in the vertex-colour mesh, because it glows.
+ * The camper's table, in front of it: a white top on two black stands, a folding chair either
+ * side turned to face across it, and a lantern on it. The lantern's glass is the one part not
+ * in the vertex-colour mesh, because it glows.
  */
 function buildPicnic(vertexMat: THREE.Material, lanternMat: THREE.Material): { group: THREE.Group; lantern: THREE.Vector3; dispose(): void } {
   const P = LOT.PICNIC;
   const T = P.table;
-  const wood = '#8B6A48';
-  const woodDark = '#6E5238';
+  const top = '#EDE8DC';
+  const stand = '#2B2B2E';
   const canvas = '#3E6B8A';
   const frame = '#5E6266';
   const hl = T.length / 2;
   const hw = T.width / 2;
   const parts: THREE.BufferGeometry[] = [
-    // The top, and two trestle ends under it.
-    colored(at(new THREE.BoxGeometry(T.length, 0.05, T.width), P.x, T.height - 0.025, P.z), wood),
-    colored(at(new THREE.BoxGeometry(0.06, T.height - 0.05, T.width - 0.2), P.x - hl + 0.15, (T.height - 0.05) / 2, P.z), woodDark),
-    colored(at(new THREE.BoxGeometry(0.06, T.height - 0.05, T.width - 0.2), P.x + hl - 0.15, (T.height - 0.05) / 2, P.z), woodDark),
-    // The cooler, at the end nearer the verge.
-    colored(at(new THREE.BoxGeometry(0.45, 0.32, 0.4), P.x + hl + 0.325, 0.16, P.z), '#3A5A8C'),
-    colored(at(new THREE.BoxGeometry(0.47, 0.05, 0.42), P.x + hl + 0.325, 0.345, P.z), '#E4E0D3'),
+    // The white top, and a black stand at each end: a post on a foot, a bar under the top.
+    colored(at(new THREE.BoxGeometry(T.length, 0.04, T.width), P.x, T.height - 0.02, P.z), top),
+  ];
+  for (const end of [-1, 1]) {
+    const x = P.x + end * (hl - 0.18);
+    parts.push(
+      colored(at(new THREE.BoxGeometry(0.05, T.height - 0.08, 0.05), x, (T.height - 0.08) / 2 + 0.03, P.z), stand),
+      colored(at(new THREE.BoxGeometry(0.08, 0.03, T.width - 0.15), x, 0.015, P.z), stand),
+      colored(at(new THREE.BoxGeometry(0.05, 0.03, T.width - 0.2), x, T.height - 0.055, P.z), stand),
+    );
+  }
+  parts.push(
     // The lantern's body; the glass is separate.
     colored(at(new THREE.CylinderGeometry(0.06, 0.07, 0.04, 8), P.x, T.height + 0.02, P.z), frame),
     colored(at(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 8), P.x, T.height + 0.235, P.z), frame),
-  ];
+  );
   // Two folding chairs, one either side, facing the table.
   for (const side of [-1, 1]) {
     const cz = P.z + side * (hw + 0.45);
@@ -213,18 +218,24 @@ function paintSurface(): HTMLCanvasElement {
   ctx.fillStyle = stain;
   ctx.fillRect(X(-7.2), Z(0.1), 2 * px, 2 * px);
 
-  // Bay lines: the row the vehicle is in, heads at the kerb, and the row across the aisle,
-  // heads facing back, painted from the far edge of the surface up to its own head.
+  // Bay lines, three rows: the vehicle's, the one across the aisle ahead with its heads facing
+  // back at us, and the heads of one more behind, painted from the far edge of the surface.
   ctx.fillStyle = PALETTE.MARKING;
   ctx.globalAlpha = B.alpha;
   const lw = B.line * px;
-  const head = LOT.KERB_X;
+  const head = LOT.ROW_HEAD_X;
   const rowBack = head - B.length;
-  const aisleHead = rowBack - LOT.AISLE;
+  const behindHead = rowBack - LOT.AISLE;
+  const aheadHead = head + LOT.AISLE;
+  const aheadEnd = Math.min(aheadHead + B.length, LOT.KERB_X);
   for (const z of bayLines(B.width, 3)) {
     ctx.fillRect(X(rowBack), Z(z) - lw / 2, (head - rowBack) * px, lw);
-    ctx.fillRect(X(S.back), Z(z) - lw / 2, (aisleHead - S.back) * px, lw);
+    ctx.fillRect(X(aheadHead), Z(z) - lw / 2, (aheadEnd - aheadHead) * px, lw);
+    ctx.fillRect(X(S.back), Z(z) - lw / 2, (behindHead - S.back) * px, lw);
   }
+  // The heads of the two rows that face an aisle: a line across, so the aisle reads as one.
+  ctx.fillRect(X(head), Z(-1.5 * B.width) - lw / 2, lw, 3 * B.width * px);
+  ctx.fillRect(X(aheadHead), Z(-1.5 * B.width) - lw / 2, lw, 3 * B.width * px);
   ctx.globalAlpha = 1;
 
   // A drain grate at the low point of the aisle.
@@ -281,18 +292,13 @@ export function createLot(maxAnisotropy: number): World {
       colored(at(new THREE.SphereGeometry(0.35, 8, 6).scale(1, 0.7, 1), b.x + 0.35, 0.25, b.z + 0.2), '#55764A'),
     );
   }
-  const staticGeom = merge(parts);
-  const statics = new THREE.Mesh(staticGeom, vertexMat);
-  statics.castShadow = true;
-  statics.receiveShadow = true;
-  statics.name = 'lot:props';
-  group.add(statics);
-
   // --- The lamp post, its arm reaching back over the bay. The head is its own material so it
   // can glow, exactly as the streetlights do.
   const L = LOT.LAMP;
   const poleMat = new THREE.MeshStandardMaterial({ color: '#4A4E52', roughness: 0.7, metalness: 0.3 });
   const poleGeom = merge([at(new THREE.CylinderGeometry(0.05, 0.07, 5.2, 8), L.x, 2.6, L.z), at(new THREE.CylinderGeometry(0.04, 0.04, 0.5, 6).rotateZ(Math.PI / 2), L.x - 0.25, 5.1, L.z)]);
+  // It stands in the aisle, so it stands on something: a concrete base, in the props mesh.
+  parts.push(colored(at(new THREE.CylinderGeometry(L.base.radius, L.base.radius + 0.04, L.base.height, 12), L.x, L.base.height / 2, L.z), '#BDB7A9'));
   const pole = new THREE.Mesh(poleGeom, poleMat);
   pole.name = 'lot:lamp';
   const lampMat = new THREE.MeshStandardMaterial({ color: '#E9E2CF', emissive: PALETTE.SODIUM, emissiveIntensity: 0, roughness: 0.5 });
@@ -301,6 +307,13 @@ export function createLot(maxAnisotropy: number): World {
   head.name = 'lot:lampHead';
   group.add(pole, head);
   const headPos = new THREE.Vector3(L.x - 0.45, 5.05, L.z);
+
+  const staticGeom = merge(parts);
+  const statics = new THREE.Mesh(staticGeom, vertexMat);
+  statics.castShadow = true;
+  statics.receiveShadow = true;
+  statics.name = 'lot:props';
+  group.add(statics);
 
   // --- Furniture, per vehicle. Built once each, shown for the vehicle it belongs to. A lantern
   // on the table is the second lamp head, at a lantern's level, whenever it is on show.

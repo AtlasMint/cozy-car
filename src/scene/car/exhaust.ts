@@ -1,9 +1,10 @@
 import * as THREE from 'three';
-import type { MotionProfile } from '../../core/vehicles';
+import type { ExhaustProfile } from '../../core/vehicles';
 import { CAMERA_AXES_GLSL } from '../../weather/effects/instanced';
 
 /**
- * Slow, sparse exhaust puffs from the tailpipe, which faces the camera.
+ * Slow, sparse exhaust puffs from the tailpipe, which faces the camera. Or, given a different
+ * profile, steam off a pot: the machinery does not care what is hot.
  *
  * One InstancedMesh, one material, one texture — the whole plume is a single draw call. The
  * pool is small enough that the CPU can write the per-instance offset, scale and alpha every
@@ -45,8 +46,7 @@ function puffTexture(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(c);
 }
 
-export function createExhaust(tip: THREE.Vector3, motion: MotionProfile, poolSize = 14): ExhaustRig {
-  const E = motion.exhaust;
+export function createExhaust(tip: THREE.Vector3, E: ExhaustProfile, poolSize = 14): ExhaustRig {
   const group = new THREE.Group();
   group.name = 'exhaust';
 
@@ -70,7 +70,7 @@ export function createExhaust(tip: THREE.Vector3, motion: MotionProfile, poolSiz
 
   const texture = puffTexture();
   const material = new THREE.ShaderMaterial({
-    uniforms: { uMap: { value: texture }, uColor: { value: new THREE.Color('#e6e4de') } },
+    uniforms: { uMap: { value: texture }, uColor: { value: new THREE.Color(E.color ?? '#e6e4de') } },
     transparent: true,
     depthWrite: false,
     vertexShader: /* glsl */ `
@@ -129,7 +129,7 @@ export function createExhaust(tip: THREE.Vector3, motion: MotionProfile, poolSiz
     p.vx = -(E.drift + speed * 0.35) * (0.8 + Math.random() * 0.4);
     p.vy = E.rise * (0.8 + Math.random() * 0.5);
     p.vz = (Math.random() - 0.5) * 0.12;
-    p.x = tip.x - 0.05;
+    p.x = tip.x - (E.setback ?? 0.05);
     p.y = tip.y;
     p.z = tip.z;
     p.alive = true;
@@ -164,7 +164,7 @@ export function createExhaust(tip: THREE.Vector3, motion: MotionProfile, poolSiz
         offsets[i * 3 + 1] = p.y;
         offsets[i * 3 + 2] = p.z;
         scales[i] = p.size * (1 + E.grow * k * 3);
-        alphas[i] = (k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85) * 0.5;
+        alphas[i] = (k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85) * (E.alpha ?? 0.5);
       }
       aOffset.needsUpdate = true;
       aScale.needsUpdate = true;
