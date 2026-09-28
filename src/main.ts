@@ -372,11 +372,14 @@ async function changeMode(target: Mode): Promise<void> {
   }
   transitioning = true;
   modeControl.setBusy(true);
-  const fade = store.get().reducedMotion ? INTERACTION.SWAP_FADE_MS / 2 : INTERACTION.SWAP_FADE_MS;
+  // A long fade out — leaving somewhere — and the swap's fade back in.
+  const calm = store.get().reducedMotion;
+  const out = calm ? INTERACTION.MODE_FADE_MS / 2 : INTERACTION.MODE_FADE_MS;
+  const fade = calm ? INTERACTION.SWAP_FADE_MS / 2 : INTERACTION.SWAP_FADE_MS;
   try {
     store.set({ focusedObject: null });
     raycast.clearHover();
-    await curtain.cover(fade);
+    await curtain.cover(out);
 
     const pullingOut = shownMode === 'park';
     shownMode = target;

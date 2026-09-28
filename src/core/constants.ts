@@ -457,6 +457,12 @@ export const INTERACTION = {
   PUSH_IN_MS: 900,
   /** Half a vehicle swap: the screen fades to black over this, and back over it again. */
   SWAP_FADE_MS: 280,
+  /**
+   * The fade to black into or out of Park. Longer than a swap's on purpose: a swap is an
+   * exchange, this is leaving somewhere. The fade back is the swap's, so the roadside — or the
+   * lot — arrives promptly once the work behind the black is done.
+   */
+  MODE_FADE_MS: 1000,
   RADIO_ZOOM: 3.2,
   /** Emissive lift on hover. */
   HOVER_EMISSIVE: 0.35,
