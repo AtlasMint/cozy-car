@@ -274,8 +274,8 @@ Nothing else needs to change.
   room. Rain and snow are dropped by a ray/box test against the whole car including the roof
   volume, so nothing falls into the open cabin and the car reads as sheltered.
 
-See [docs/PLAN-car.md](docs/PLAN-car.md) for the original implementation plan and
+See [docs/PLAN-car-init.md](docs/PLAN-car-init.md) for the original implementation plan and
 [docs/archive/](docs/archive/) for the version logs (`v0.1` cutaway, `v0.2` open roof, `v0.3`
-three vehicles, `v0.4` full-height camper, `v0.5` controls and mix), and
-[docs/PLAN-cars.md](docs/PLAN-cars.md) and [docs/PLAN-ui.md](docs/PLAN-ui.md) for the plans v0.3
-and v0.5 followed.
+three vehicles, `v0.4` full-height camper, `v0.5` controls and mix, `v0.6` park, horn and keys —
+in progress), and [docs/PLAN-cars.md](docs/PLAN-cars.md), [docs/PLAN-ui.md](docs/PLAN-ui.md)
+and [docs/PLAN-park.md](docs/PLAN-park.md) for the plans v0.3, v0.5 and v0.6 follow.
