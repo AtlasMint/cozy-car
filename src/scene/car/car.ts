@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Stage } from '../stage';
 import { createRadio, type RadioRig } from './radio';
+import { createHorn, type HornRig } from './horn';
 import { createWheels, type WheelsRig } from './wheels';
 import { Builder, createMaterials, type CarMaterials } from './parts';
 import { HATCHBACK, type BodyKit, type VehicleSpec } from '../../core/vehicles';
@@ -40,6 +41,8 @@ export interface Vehicle {
   group: THREE.Group;
   body: BodyKit;
   radio: RadioRig;
+  /** Every vehicle has one: the hitbox in the middle of the steering wheel. */
+  horn: HornRig;
   wheels: WheelsRig;
   driverRoot: THREE.Group;
   driver: DriverFigure;
@@ -70,6 +73,7 @@ export function createVehicle(stage: Stage, v: VehicleSpec = HATCHBACK): Vehicle
   const b = new Builder(materials);
   const body = v.build(b, materials, v);
   const radio = createRadio(b, materials, v);
+  const horn = createHorn(b, v);
   const built = b.finish('car');
   const wheels = createWheels(materials, v);
   const driverRoot = new THREE.Group();
@@ -169,6 +173,7 @@ export function createVehicle(stage: Stage, v: VehicleSpec = HATCHBACK): Vehicle
     group: built.group,
     body,
     radio,
+    horn,
     wheels,
     driverRoot,
     driver,
@@ -188,6 +193,7 @@ export function createVehicle(stage: Stage, v: VehicleSpec = HATCHBACK): Vehicle
       body.dispose?.();
       built.dispose();
       radio.dispose();
+      horn.dispose();
       wheels.dispose();
       materials.dispose();
     },

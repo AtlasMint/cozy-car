@@ -33,6 +33,11 @@ export interface Layers {
   crank(): void;
   /** A main gun going off. Louder than anything else here, and asked for rather than imposed. */
   gunshot(): void;
+  /**
+   * The horn, while it is held: true on the way down, false on the way up. Both directions are
+   * idempotent, so a lost keyup or a second press costs nothing.
+   */
+  horn(on: boolean): void;
   dispose(): void;
 }
 
@@ -379,6 +384,100 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
     return blastVerb;
   };
 
+  /**
+   * The horn, for as long as it is held down.
+   *
+   * A car horn is a steel diaphragm driven past its own resonance by a contact breaker: it
+   * chops the air rather than swinging it. So the tone is a sawtooth, not a sine — a pair of
+   * sines is a doorbell — through a peak at the flare's mode, which is where the bite lives.
+   * The two tones on the spec beat against each other, and that beat is what the ear
+   * recognises as a car rather than as a note.
+   *
+   * Both ends are the diaphragm reaching speed and losing it: the pitch starts below and sags
+   * back below as it stops, which is most of what makes a honk sound mechanical.
+   *
+   * One voice at a time, and it always ends — a press whose release never arrives runs out at
+   * HORN_MIX.maxHoldS rather than sounding for the rest of the session.
+   */
+  let hornVoice: { release(): void } | null = null;
+
+  const pressHorn = () => {
+    const ctx = mixer.context;
+    // The engine bus: this is the vehicle making the noise, the same reasoning as the gun.
+    const out = mixer.bus('engine');
+    if (!ctx || !out || ctx.state !== 'running' || hornVoice) return;
+    const H = AUDIO.HORN_MIX;
+    const tones = profile.horn.tones;
+    const peak = AUDIO.LEVELS.horn * profile.horn.gain;
+    const t = ctx.currentTime;
+
+    const master = ctx.createGain();
+    master.gain.setValueAtTime(0.0001, t);
+    master.gain.exponentialRampToValueAtTime(peak, t + H.attackS);
+    master.connect(out);
+
+    const nodes: AudioNode[] = [master];
+    const oscs: OscillatorNode[] = [];
+    tones.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq * (1 - H.droop), t);
+      osc.frequency.linearRampToValueAtTime(freq, t + H.attackS * 1.6);
+      const flare = ctx.createBiquadFilter();
+      flare.type = 'peaking';
+      flare.frequency.value = freq * H.flare.harmonic;
+      flare.Q.value = H.flare.q;
+      flare.gain.value = H.flare.gainDb;
+      const limit = ctx.createBiquadFilter();
+      limit.type = 'lowpass';
+      limit.frequency.value = H.toneLimitHz;
+      const share = ctx.createGain();
+      share.gain.value = H.tones[i] ?? 0;
+      osc.connect(flare).connect(limit).connect(share).connect(master);
+      osc.start(t);
+      oscs.push(osc);
+      nodes.push(flare, limit, share);
+    });
+
+    // Air moving past the diaphragm. Small, and the tone is obviously synthetic without it.
+    const air = loopNoise(ctx, false);
+    const airBand = ctx.createBiquadFilter();
+    airBand.type = 'bandpass';
+    airBand.frequency.value = tones[0] * 4;
+    airBand.Q.value = 0.8;
+    const airGain = ctx.createGain();
+    airGain.gain.value = H.air;
+    air.connect(airBand).connect(airGain).connect(master);
+    air.start(t);
+    nodes.push(airBand, airGain);
+
+    let ended = false;
+    const release = () => {
+      if (ended) return;
+      ended = true;
+      clearTimeout(timer);
+      if (hornVoice === voice) hornVoice = null;
+      const now = ctx.currentTime;
+      const end = now + H.releaseS;
+      master.gain.cancelScheduledValues(now);
+      master.gain.setValueAtTime(Math.max(master.gain.value, 0.0001), now);
+      master.gain.exponentialRampToValueAtTime(0.0001, end);
+      oscs.forEach((osc, i) => {
+        osc.frequency.cancelScheduledValues(now);
+        osc.frequency.setValueAtTime(osc.frequency.value, now);
+        osc.frequency.linearRampToValueAtTime(tones[i]! * (1 - H.droop), end);
+        osc.stop(end + 0.02);
+      });
+      air.stop(end + 0.02);
+      setTimeout(() => {
+        for (const n of nodes) n.disconnect();
+      }, (H.releaseS + 0.1) * 1000);
+    };
+    const timer = setTimeout(release, H.maxHoldS * 1000);
+    const voice = { release };
+    hornVoice = voice;
+  };
+
   const setLevel = (name: LayerName, target: number, dt: number) => {
     const l = layers.get(name);
     const ctx = mixer.context;
@@ -389,6 +488,9 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
 
   return {
     setEngineProfile(p) {
+      // Whatever is sounding belongs to the vehicle that is leaving: it does not carry over to
+      // the next one with the old car's tones still in it.
+      hornVoice?.release();
       const hadTracks = !!profile.tracks;
       profile = p;
       // The voice bakes its wave tables and resonators per vehicle, so it is rebuilt rather
@@ -576,6 +678,10 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
         clank.stop(t2 + 0.02);
       }
     },
+    horn(on) {
+      if (on) pressHorn();
+      else hornVoice?.release();
+    },
     crank() {
       const ctx = mixer.context;
       const out = mixer.bus('engine');
@@ -608,6 +714,7 @@ export function createLayers(mixer: Mixer, initialProfile: EngineProfile = HATCH
       clicks.start();
     },
     dispose() {
+      hornVoice?.release();
       for (const l of layers.values()) {
         l.source?.stop();
         l.source?.disconnect();

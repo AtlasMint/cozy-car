@@ -273,7 +273,7 @@ export const AUDIO = {
    * against the engine, which is why it shouted: rain at 0.55 beside an engine at 0.5 is not
    * equal loudness, because rain is broadband and an engine is harmonic.
    */
-  LEVELS: { engine: 0.5, roadNoise: 0.45, rain: 0.42, wind: 0.26, ambience: 0.22, thunder: 0.55, crank: 0.4, gun: 50 },
+  LEVELS: { engine: 0.5, roadNoise: 0.45, rain: 0.42, wind: 0.26, ambience: 0.22, thunder: 0.55, crank: 0.4, gun: 50, horn: 0.26 },
   /**
    * The shot, component by component, as multiples of LEVELS.gun — which stays the one knob for
    * how loud the whole thing is. These are the knob for its *shape*, and any one of them set to
@@ -298,6 +298,42 @@ export const AUDIO = {
     breech: 0,
     /** How much of the shot is sent to the room. 0 makes it anechoic. */
     room: 0.8,
+  },
+  /**
+   * The horn, component by component, as multiples of LEVELS.horn — which stays the one knob
+   * for how loud it is. A horn is a steel diaphragm driven past its own resonance: it chops the
+   * air rather than swinging it, which is why a sawtooth through a peak at the flare's mode
+   * sounds like a car and a pair of sine waves sounds like a doorbell.
+   *
+   * The two tones are on the spec, per vehicle. Everything about the *shape* is here, shared,
+   * because what separates a hatchback's horn from a tank's is pitch and weight, not mechanism.
+   *
+   * Measured at the master tap with the volume at its default, a horn held in Chill peaks at
+   * 0.56 to 0.67 across the four vehicles, against the 0.92 the camper reaches in Focus under
+   * thunder. So it is comfortably the loudest thing you can do on purpose short of the gun, and
+   * it does not raise the ceiling the note above is about. The per-vehicle trims exist to keep
+   * those four numbers together; see the note on `horn` in vehicles.ts.
+   */
+  HORN_MIX: {
+    /** Share of the level each tone carries. The lower one leads; the upper one is the beat. */
+    tones: [1, 0.78] as const,
+    /** The flare, as a peaking filter on the second harmonic: a horn's bite lives there. */
+    flare: { harmonic: 2, q: 2.2, gainDb: 9 },
+    /** Above this the sawtooth is a buzzer rather than a horn. */
+    toneLimitHz: 5200,
+    /** Air past the diaphragm, as a share of the level. Without it the tone is synthetic. */
+    air: 0.1,
+    /**
+     * The diaphragm takes a moment to reach speed and sags as it stops, which is the whole
+     * character of the start and the end. `droop` is how far below pitch each end sits.
+     */
+    attackS: 0.02,
+    releaseS: 0.085,
+    droop: 0.05,
+    /** A press with no matching release — a lost keyup, a dropped pointer — ends here. */
+    maxHoldS: 6,
+    /** How long a click on the wheel holds it down for. Long enough to read as a beep. */
+    tapS: 0.32,
   },
   /**
    * NOTE ON HEADROOM. There is no limiter between the master fader and the destination, so the

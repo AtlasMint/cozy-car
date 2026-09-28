@@ -68,11 +68,32 @@ back, so a key cannot be advertised without being bound or bound without being a
 | **V** | Change vehicle |
 | **F** | Chill or Focus |
 | **M** | Mute everything |
+| **H** | Horn — hold it |
 | **R** | Open the radio |
 | **Esc** | Back out of whatever the camera is pushed in on |
 
 A key with no label is deliberately absent from that list and from the table above. Registering
 one without a label is how something stays worth finding out about.
+
+## The horn
+
+Every vehicle has one, and it is two things: hold **H**, or press the middle of the steering
+wheel. Holding sounds it for as long as you hold; a click is a tap. Beep, or honk.
+
+A car horn is a steel diaphragm driven past its own resonance, chopping the air rather than
+swinging it, so the voice ([src/audio/layers.ts](src/audio/layers.ts)) is a sawtooth through a
+peak at the flare's mode and not a sine — a pair of sines is a doorbell. Each vehicle carries
+its own two tones on its spec, roughly a minor third apart so they beat against each other, and
+that beat is what the ear hears as a car: 400/500 Hz on the hatchback, where the standard disc
+pair sits, down to 185/232 on something that is really sounding a klaxon. Both ends are the
+diaphragm reaching speed and losing it, which is the pitch sagging below on the way in and again
+on the way out. A press whose release never arrives — a lost keyup, a window that lost focus —
+runs out on its own rather than sounding for the rest of the session.
+
+The press is the middle of the steering wheel on every vehicle because every spec already says
+where that is: `cabin.wheelCentre` and `cabin.steeringRadius`, the same numbers the driver's
+grips are built from. It works on a vehicle whose wheel is a grab bar across a hatch without
+knowing that is what it is.
 
 ## Audio
 
@@ -105,8 +126,9 @@ moves with rpm — peaking filters on each vehicle's exhaust modes, the Helmholt
 damping lowpass and a tailpipe highpass. Cycle-gated noise carries intake roar, valve tick and
 the diesel knock band. Load is separate from rpm, so Chill and Focus differ in timbre.
 
-The other layers are road hum, rain, wind and an outdoor room tone, plus one-shot thunder and
-the starter crank. See [public/audio/README.md](public/audio/README.md) for the optional files.
+The other layers are road hum, rain, wind and an outdoor room tone, plus thunder, the starter
+crank and the horn — which is not a one-shot but a held note, and the only thing here with a
+release as well as an attack. See [public/audio/README.md](public/audio/README.md) for the optional files.
 
 ## The radio
 
@@ -150,7 +172,7 @@ Every tunable is in [src/core/constants.ts](src/core/constants.ts), grouped by s
 | `SPEED` | Focus cruising speed and its spring |
 | `WEATHER` | Fallback location, timeouts, cache TTL |
 | `WEATHER_FX` | Fog per kind, precipitation counts/shape, glass, lightning, headlights, streetlights, per-kind sky and light looks, the car exclusion box |
-| `AUDIO` | Per-layer levels, the four bus levels, the duck factor, and the rain and wind synths; per-vehicle gains live on the spec |
+| `AUDIO` | Per-layer levels, the four bus levels, the duck factor, the rain and wind synths and the shape of the gun and the horn; per-vehicle gains and tones live on the spec |
 | `RADIO` | Radio Browser endpoint, playable codecs, search radius, band size and the two timeouts |
 | `INTERACTION`, `SPOTIFY` | Hover rate, push-in and swap-fade timing, zoom, preset playlists |
 | `PALETTE` | Every colour |
@@ -171,7 +193,8 @@ src/
   ui/          overlay, curtain (the swap fade), menu (the More popovers), tooltip, hotkeys
                (every key binding, and the list the settings menu shows), startScreen,
                modeToggle, vehiclePicker, weatherBadge, volume (mute, slider and the balance
-               menu), settingsMenu, locationPicker, spotifyPanel, gunControl, debugStats
+               menu), settingsMenu, locationPicker, spotifyPanel, gunControl, hornControl,
+               debugStats
   util/        math, tests/
 ```
 

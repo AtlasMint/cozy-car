@@ -173,6 +173,18 @@ export interface EngineProfile {
   intake: { idle: number; loaded: number; freq: number };
   crank: { from: number; to: number; ms: number };
   /**
+   * The horn: two tones in Hz, and a trim against AUDIO.LEVELS.horn. The trims are not all 1
+   * because equal gain is not equal loudness: a sawtooth pair an octave and a half lower puts
+   * far more energy where the ear is sensitive, and the tank measured half again as loud as the
+   * hatchback at the same setting. They were set by measuring each one at the master tap.
+   *
+   * Two tones rather than one is the whole sound. A single tone is a buzzer; a pair a rough
+   * minor third apart beat against each other, and that beat is what the ear hears as a car.
+   * The road cars sit near the standard 400/500 Hz disc pair — the heavier the vehicle, the
+   * lower and slower the pair, down to something closer to a klaxon.
+   */
+  horn: { tones: readonly [number, number]; gain: number };
+  /**
    * A turbocharger: a whine whose pitch and level follow boost — which is to say load, far more
    * than crank speed — and which lags the throttle by `spoolS`. Absent on anything without one.
    */
@@ -353,6 +365,7 @@ export const HATCHBACK: VehicleSpec = {
     tick: { gain: 0.1, freq: 4200 },
     intake: { idle: 0.08, loaded: 0.3, freq: 700 },
     crank: { from: 28, to: 62, ms: 700 },
+    horn: { tones: [400, 500], gain: 1.15 },
     gain: { engine: 1, road: 1, wind: 1 },
     focusRate: AUDIO.FOCUS_RATE,
   },
@@ -466,6 +479,9 @@ export const SPORTS: VehicleSpec = {
     tick: { gain: 0.14, freq: 4600 },
     intake: { idle: 0.1, loaded: 0.45, freq: 820 },
     crank: { from: 34, to: 80, ms: 520 },
+    // Small, bright and slightly sharp of the standard pair: a roadster's horn is a
+    // single-tone item that someone fitted a second one beside.
+    horn: { tones: [440, 550], gain: 0.88 },
     gain: { engine: 1.16, road: 1.1, wind: 1.45 },
     focusRate: 1.55,
   },
@@ -596,6 +612,8 @@ export const VAN: VehicleSpec = {
     tick: { gain: 0.06, freq: 3600 },
     intake: { idle: 0.06, loaded: 0.26, freq: 520 },
     crank: { from: 18, to: 44, ms: 1150 },
+    // A bigger pair of trumpets behind a bigger grille.
+    horn: { tones: [310, 390], gain: 1 },
     gain: { engine: 1.22, road: 1.14, wind: 1.1 },
     focusRate: 1.18,
   },
@@ -739,6 +757,8 @@ export const TANK: VehicleSpec = {
     tick: { gain: 0.05, freq: 3200 },
     intake: { idle: 0.07, loaded: 0.34, freq: 420 },
     crank: { from: 12, to: 34, ms: 1700 },
+    // Not a horn so much as a warning: an electric klaxon low enough to feel.
+    horn: { tones: [185, 232], gain: 0.92 },
     // Two big turbos. The whine is what a modern tank is recognised by from a distance — an
     // Abrams is a turbine and is nothing but whine — and it is the one thing the pulse train
     // cannot produce on its own. Pitch and level follow load; the spool lag is why it swells

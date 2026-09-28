@@ -26,6 +26,29 @@ describe('vehicle specs', () => {
         expect(v.shelter.max[2]).toBeGreaterThanOrEqual(halfWidth);
       });
 
+      test('the horn is two tones that beat rather than one that does not', () => {
+        const [low, high] = v.audio.horn.tones;
+        // Audible, and inside what the sawtooth's flare peak is built for.
+        expect(low).toBeGreaterThan(120);
+        expect(high).toBeLessThan(900);
+        // The interval is the whole point. Unison is a single tone with extra steps; more than
+        // a fourth apart and the two stop beating and read as two separate horns.
+        expect(high / low).toBeGreaterThan(1.1);
+        expect(high / low).toBeLessThan(1.4);
+        expect(v.audio.horn.gain).toBeGreaterThan(0);
+      });
+
+      test('the horn hitbox sits in the wheel and clears the radio', () => {
+        // createHorn puts an invisible box at the wheel centre; the radio has one of its own a
+        // few centimetres away on most of these, and two hitboxes that overlap make one of them
+        // unreachable in whichever order the ray happens to hit them.
+        const horn = { c: v.cabin.wheelCentre, h: [v.cabin.steeringRadius * 0.6, v.cabin.steeringRadius * 1.05, v.cabin.steeringRadius * 1.05] as const };
+        const radioCentre = [v.anchors.radioFace[0] + 0.02, v.anchors.radioFace[1], v.anchors.radioFace[2]] as const;
+        const radioHalf = v.anchors.radioHitbox.map((n) => n / 2);
+        const apart = [0, 1, 2].some((i) => Math.abs(horn.c[i]! - radioCentre[i]!) >= horn.h[i]! + radioHalf[i]!);
+        expect(apart).toBe(true);
+      });
+
       test('the rear bump delay is the wheelbase crossed at cruising speed', () => {
         // A derived quantity frozen as a constant, so it is wrong by default on a new wheelbase.
         expect(v.motion.bump.rearDelay).toBeCloseTo(v.dims.wheelbase / v.speed.focus, 3);

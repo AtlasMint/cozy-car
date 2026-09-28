@@ -28,6 +28,7 @@ import { createRegistry } from './interaction/interactables';
 import { createRaycast } from './interaction/raycast';
 import { createFocusCamera } from './interaction/focusCamera';
 import { createGunControl } from './ui/gunControl';
+import { createHornControl } from './ui/hornControl';
 import { createHotkeys } from './ui/hotkeys';
 import { createSpotifyPanel } from './ui/spotifyPanel';
 import { kindLabel } from './weather/wmo';
@@ -138,6 +139,9 @@ createFocusCamera(iso, registry, store);
 // that will never do anything.
 const gunControl = createGunControl(store, registry, hotkeys, () => layers.gunshot());
 gunControl.setVehicle(car);
+// Every vehicle has a horn, so unlike the gun this always has something to point at.
+const hornControl = createHornControl(store, registry, hotkeys, (on) => layers.horn(on));
+hornControl.setVehicle(car);
 // R is the radio the same way clicking it is: it sets the focus the panel watches, and pressing
 // it again is the way back out, which is what Escape already does from the focus camera. Not
 // before the engine, like every other key that reaches the car: the start screen is still up,
@@ -279,6 +283,7 @@ async function swapVehicle(id: VehicleId): Promise<void> {
     currentVehicleId = id;
     unregisterRadio = registerRadio(car, spec);
     gunControl.setVehicle(car);
+    hornControl.setVehicle(car);
     radioAnchor.copy(car.radio.face);
     director.setVehicle(spec, car);
     lighting.setVehicle(spec);
@@ -314,6 +319,7 @@ async function swapVehicle(id: VehicleId): Promise<void> {
     unregisterRadio();
     unregisterRadio = registerRadio(car, VEHICLES[currentVehicleId]);
     gunControl.setVehicle(car);
+    hornControl.setVehicle(car);
   } finally {
     await curtain.reveal(fade);
     swapping = false;
