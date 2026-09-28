@@ -7,6 +7,8 @@ import { createDebugStats } from './ui/debugStats';
 import { createIsoCamera } from './core/isoCamera';
 import { createStage } from './scene/stage';
 import { createRoadWorld } from './scene/world/world';
+import { createLot } from './scene/world/lot';
+import { createWorlds } from './scene/world/worlds';
 import { createLighting } from './scene/lighting';
 import { createVehicle, type Vehicle } from './scene/car/car';
 import { VEHICLES, type VehicleSpec } from './core/vehicles';
@@ -56,9 +58,12 @@ const qualityWasChosen = prefs.quality !== undefined;
 const stage = createStage();
 const iso = createIsoCamera();
 
-// The place the vehicle stands in. One object, whatever it is made of; see world/world.ts.
-const world = createRoadWorld(rig.renderer.capabilities.getMaxAnisotropy());
+// The places the vehicle can stand in, behind one face; see world/world.ts and worlds.ts.
+// Parked is the lot, anything else is the roadside.
+const aniso = rig.renderer.capabilities.getMaxAnisotropy();
+const world = createWorlds(createRoadWorld(aniso), createLot(aniso));
 stage.slab.add(world.group);
+world.show(engineOn(store.get().mode) ? 'road' : 'lot');
 
 const lighting = createLighting();
 stage.scene.add(lighting.group);
@@ -68,6 +73,7 @@ const bootId = parseVehicleHash(location.hash) ?? prefs.vehicle ?? defaultState.
 store.set({ vehicle: bootId });
 const bootSpec = VEHICLES[bootId];
 let car = createVehicle(stage, bootSpec);
+world.setVehicle(bootId);
 iso.setFraming({
   target: new THREE.Vector3(...bootSpec.camera.target),
   viewSize: bootSpec.camera.viewSize,
@@ -307,6 +313,7 @@ async function swapVehicle(id: VehicleId): Promise<void> {
     radioAnchor.copy(car.radio.face);
     director.setVehicle(spec, car);
     lighting.setVehicle(spec);
+    world.setVehicle(id);
     // Must precede any mode change: the store notifies synchronously, so the new vehicle
     // would otherwise crank with the old one's starter.
     layers.setEngineProfile(spec.audio);
@@ -373,6 +380,7 @@ async function changeMode(target: Mode): Promise<void> {
 
     const pullingOut = shownMode === 'park';
     shownMode = target;
+    world.show(pullingOut ? 'road' : 'lot');
     if (pullingOut) {
       // The first gesture already resumed the context; this is for a boot that had none.
       void mixer.resume().then(() => layers.crank());
@@ -384,6 +392,9 @@ async function changeMode(target: Mode): Promise<void> {
       modeSpring.reset(0);
     }
     updateLcd();
+    // The first time a world is shown its programs have never linked; the same reasoning as a
+    // vehicle swap, and the same call.
+    await rig.renderer.compileAsync(stage.scene, iso.camera);
     await drawn();
   } catch (err) {
     console.error('[mode] failed', err);

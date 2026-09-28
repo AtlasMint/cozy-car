@@ -90,6 +90,42 @@ export const WORLD = {
   },
 } as const;
 
+/**
+ * The parking lot: the place the app opens in. Bays run along X like the road did, side by
+ * side along Z, with the vehicle's bay centred on the origin and its nose to a kerb. Every
+ * standing thing here is checked against the camera rule in world/lot.ts by a test, so moving
+ * one is safe and moving one into the near-rear quadrant is caught.
+ */
+export const LOT = {
+  BAY: { width: 2.7, length: 6, line: 0.12, alpha: 0.55 },
+  /**
+   * Head of the row. Must clear every nose in VEHICLES, not only the listed ones — a test holds
+   * it there — and the longest is 3.5 m from the origin. A 6 m bay keeps the camper's overhang
+   * at the rear to 0.8 m, which is what a camper in a bay looks like.
+   */
+  KERB_X: 4,
+  KERB: { height: 0.12, width: 0.25 },
+  /** The aisle behind the row, before the next row's heads. */
+  AISLE: 6,
+  /** The painted surface on the slab. The plinth narrows toward the front, so the width is
+   *  what fits at the kerb: half the slab is 4.64 there. */
+  SURFACE: { back: -11, front: 4, halfWidth: 4.2 },
+  SURFACE_Y: 0.012,
+  VERGE: { depth: 4.5, color: '#5F6B4A' },
+  WALL: { height: 0.5, thickness: 0.15 },
+  LAMP: { x: 5.6, z: 3.6 },
+  PINES: [
+    { x: 7.0, z: 3.1 },
+    { x: 7.9, z: -3.0 },
+  ],
+  BUSHES: [
+    { x: 5.0, z: -3.9 },
+    { x: 7.6, z: 0.6 },
+  ],
+  WHEEL_STOP: { length: 1.6, height: 0.1, depth: 0.16 },
+  TEXTURE_PX: 1024,
+} as const;
+
 export const CAR = {
   /** Overall length, bumper centre to bumper centre. Consumed by chassis.ts. */
   LENGTH: 3.84,
