@@ -397,6 +397,15 @@ export const RADIO = {
   TIMEOUT_MS: 7000,
   /** A dead stream is skipped rather than dwelt on; give up after this many in a row. */
   SKIP_LIMIT: 4,
+  /**
+   * How long a station gets to start playing before it counts as dead.
+   *
+   * Longer than TIMEOUT_MS on purpose: that one is a JSON request to one known-good API, this
+   * one is somebody's icecast box on the other side of the world filling a buffer. But it has
+   * to exist — a stream that neither plays nor errors leaves the dial spinning forever, which
+   * is precisely the thing the spinner was added to stop.
+   */
+  CONNECT_TIMEOUT_MS: 12_000,
   STORAGE_KEY: 'shotgun.radio.v1',
 } as const;
 

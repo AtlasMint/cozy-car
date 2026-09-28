@@ -93,7 +93,15 @@ const PANEL_CSS = /* css */ `
 #overlay .radio-panel .dial .name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #overlay .radio-panel .dial .band { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #overlay .radio-panel .tuner button.step { width: 30px; height: 30px; padding: 0; font-size: 17px; line-height: 1; border-radius: 999px; }
-#overlay .radio-panel .tuner button.listen { padding: 7px 12px; font-size: 13px; white-space: nowrap; }
+#overlay .radio-panel .tuner button.listen { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; font-size: 13px; white-space: nowrap; }
+/* The dial turning over. A ring with a quarter cut out of it, spun — the gap is what makes the
+   rotation visible, and it is drawn in the ink colour so it belongs to the button it sits in. */
+#overlay .radio-panel .listen .spin { width: 13px; height: 13px; border-radius: 50%; border: 2px solid currentColor; border-top-color: transparent; animation: radio-spin 800ms linear infinite; }
+@keyframes radio-spin { to { transform: rotate(360deg); } }
+/* Reduce motion means calm, not blank: the ring stops turning and breathes instead, so the
+   button is still saying something while the stream opens. */
+#overlay .radio-panel.is-calm .listen .spin { animation: radio-pulse 1.4s ease-in-out infinite; }
+@keyframes radio-pulse { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
 #overlay .radio-panel .status { font-size: 12px; min-height: 0; }
 #overlay .radio-panel .status[hidden] { display: none; }
 `;
@@ -217,8 +225,12 @@ export function createSpotifyPanel(
   const dialName = el('div', 'name', 'Live radio');
   const dialBand = el('div', 'band ui-hint', 'Stations near you');
   dial.append(dialName, dialBand);
-  const listen = el('button', 'listen', 'Listen');
+  const listen = el('button', 'listen');
   listen.type = 'button';
+  const listenSpin = el('span', 'spin');
+  listenSpin.setAttribute('aria-hidden', 'true');
+  const listenText = el('span', undefined, 'Listen');
+  listen.append(listenSpin, listenText);
   tunerRow.append(prev, dial, next, listen);
   // Arrow keys move the dial while any of it has focus, which is what a dial is for.
   tunerRow.addEventListener('keydown', (e) => {
@@ -232,8 +244,14 @@ export function createSpotifyPanel(
     const s = tuner.current();
     dialName.textContent = t.status === 'loading' ? 'Tuning…' : (s?.name ?? 'Live radio');
     dialBand.textContent = t.message || (s ? `${s.codec}${s.bitrate ? ` ${s.bitrate}k` : ''}` : 'Stations near you');
-    listen.textContent = t.playing ? 'Stop' : 'Listen';
+    // Three states, not two. Between the press and the first sound the button says what it is
+    // doing and shows the ring turning; once you can hear it, it is the Stop it always was.
+    listenText.textContent = t.connecting ? 'Tuning…' : t.playing ? 'Stop' : 'Listen';
+    listenSpin.hidden = !t.connecting;
     listen.setAttribute('aria-pressed', String(t.playing));
+    listen.setAttribute('aria-busy', String(t.connecting));
+    // Still pressable while connecting: that press is how you change your mind about a stream
+    // that is taking too long.
     const idle = t.status !== 'ready';
     prev.disabled = idle;
     next.disabled = idle;
@@ -251,7 +269,8 @@ export function createSpotifyPanel(
     if (tuner.state().playing) void tuner.play();
   });
   listen.addEventListener('click', () => {
-    if (tuner.state().playing) {
+    const t = tuner.state();
+    if (t.playing || t.connecting) {
       tuner.stop();
       return;
     }
@@ -268,7 +287,7 @@ export function createSpotifyPanel(
     untipMusic,
     tip(prev, 'Previous station'),
     tip(next, 'Next station — or use the arrow keys'),
-    tip(listen, 'Play this station. Stops Spotify, which cannot play at the same time.'),
+    tip(listen, () => (tuner.state().connecting ? 'Opening the stream. Press again to give up on it.' : 'Play this station. Stops Spotify, which cannot play at the same time.')),
   ];
 
   panel.append(header, player, presets, paste, status, tunerRow, musicRow, note);
@@ -317,7 +336,10 @@ export function createSpotifyPanel(
     }
   };
   const unsubFocus = store.subscribe('focusedObject', (id) => setOpen(id === 'radio'));
+  const paintCalm = (on: boolean) => panel.classList.toggle('is-calm', on);
+  paintCalm(store.get().reducedMotion);
   const unsubs = [
+    store.subscribe('reducedMotion', paintCalm),
     store.subscribe('volumeMusic', (v) => {
       paintMusic(v);
       applyRadioVolume();

@@ -109,6 +109,14 @@ are filtered out before you ever hear the silence: http is blocked as mixed cont
 needs Media Source Extensions outside Safari, `.pls` and `.m3u` are text files listing streams.
 Arrow keys or the chevrons move the dial, and the station is remembered.
 
+Opening a stream takes as long as somebody else's server takes, so Listen has three states
+rather than two: it says Tuning… with the ring turning until you can actually hear something,
+and only then becomes Stop. "Hearing something" is the element's own `playing` event and not
+`play()` resolving, which only means the request was accepted. Pressing it again during that
+gives up on the stream, and a station that neither plays nor errors is abandoned at
+`RADIO.CONNECT_TIMEOUT_MS` — a dial that spins forever is the failure the spinner exists to
+prevent, not a smaller version of it.
+
 **The Music slider**, which is the music bus, shared with the sound menu. Spotify and the tuner
 cannot both play; starting one stops the other.
 
@@ -127,7 +135,7 @@ Every tunable is in [src/core/constants.ts](src/core/constants.ts), grouped by s
 | `WEATHER` | Fallback location, timeouts, cache TTL |
 | `WEATHER_FX` | Fog per kind, precipitation counts/shape, glass, lightning, headlights, streetlights, per-kind sky and light looks, the car exclusion box |
 | `AUDIO` | Per-layer levels, the four bus levels, the duck factor, and the rain and wind synths; per-vehicle gains live on the spec |
-| `RADIO` | Radio Browser endpoint, playable codecs, search radius and band size |
+| `RADIO` | Radio Browser endpoint, playable codecs, search radius, band size and the two timeouts |
 | `INTERACTION`, `SPOTIFY` | Hover rate, push-in and swap-fade timing, zoom, preset playlists |
 | `PALETTE` | Every colour |
 

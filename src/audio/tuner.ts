@@ -19,6 +19,12 @@ export interface TunerState {
   stations: Station[];
   index: number;
   playing: boolean;
+  /**
+   * Between pressing Listen and hearing anything: the stream is opening, or a playing one has
+   * run out of buffer. `status` cannot say this — it is about the band, not about the audio —
+   * and `playing` is deliberately still false, because nothing is audible yet.
+   */
+  connecting: boolean;
   /** Something to show the user: a failure, or where the band came from. */
   message: string;
 }
@@ -72,12 +78,19 @@ export function createTuner(doFetch: typeof fetch = fetch.bind(globalThis)): Tun
   // Deliberately not 'anonymous' — see the note at the top of this file.
   audio.volume = 0;
 
-  let state: TunerState = { status: 'idle', stations: [], index: 0, playing: false, message: '' };
+  let state: TunerState = { status: 'idle', stations: [], index: 0, playing: false, connecting: false, message: '' };
   const listeners = new Set<(s: TunerState) => void>();
   let loadedFor = '';
   let master = 1;
   let music = 1;
   let skips = 0;
+  let connectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const stopWaiting = () => {
+    if (connectTimer === null) return;
+    clearTimeout(connectTimer);
+    connectTimer = null;
+  };
 
   const emit = (patch: Partial<TunerState>) => {
     state = { ...state, ...patch };
@@ -85,9 +98,8 @@ export function createTuner(doFetch: typeof fetch = fetch.bind(globalThis)): Tun
   };
   const current = () => state.stations[state.index] ?? null;
 
-  const onError = () => {
-    // Stations die between one check and the next. Move along rather than sitting on silence.
-    if (!state.playing) return;
+  // Stations die between one check and the next. Move along rather than sitting on silence.
+  const moveOn = () => {
     if (skips >= RADIO.SKIP_LIMIT || state.stations.length < 2) {
       stop();
       emit({ message: 'That station would not play. Try another.' });
@@ -97,14 +109,43 @@ export function createTuner(doFetch: typeof fetch = fetch.bind(globalThis)): Tun
     step(1);
     void play();
   };
+  // An error counts while connecting as much as while playing: a stream that fails on the way
+  // up never settles its play() promise in some browsers, and without this the dial would spin
+  // on a station that has already given up.
+  const onError = () => {
+    if (!state.playing && !state.connecting) return;
+    moveOn();
+  };
+  // Stalling is not. It only means nothing has arrived for a few seconds, which is ordinary
+  // while a slow stream fills its first buffer — skipping there would walk past every station
+  // that merely takes a moment. While connecting, CONNECT_TIMEOUT_MS is the judge instead.
+  const onStalled = () => {
+    if (!state.playing) return;
+    moveOn();
+  };
+  // What the element says about the audio itself. `playing` is the only honest answer to "can
+  // you hear it yet" — play() resolving means the element accepted the request, not that a byte
+  // of it has arrived — and `waiting` is that same answer turning back into no mid-stream.
+  const onPlaying = () => {
+    stopWaiting();
+    if (state.playing && !state.connecting) return;
+    emit({ playing: true, connecting: false, message: '' });
+  };
+  const onWaiting = () => {
+    if (!state.playing || state.connecting) return;
+    emit({ connecting: true });
+  };
   audio.addEventListener('error', onError);
-  audio.addEventListener('stalled', onError);
+  audio.addEventListener('stalled', onStalled);
+  audio.addEventListener('playing', onPlaying);
+  audio.addEventListener('waiting', onWaiting);
 
   const stop = () => {
+    stopWaiting();
     audio.pause();
     audio.removeAttribute('src');
     audio.load();
-    emit({ playing: false });
+    emit({ playing: false, connecting: false });
   };
 
   const play = async () => {
@@ -112,16 +153,30 @@ export function createTuner(doFetch: typeof fetch = fetch.bind(globalThis)): Tun
     if (!s) return;
     audio.src = s.url;
     audio.volume = clamp01(master * music);
+    // Said before anything is awaited, so the press has an answer in the same frame as the
+    // click. Everything below can only end this state, never begin it.
+    stopWaiting();
+    emit({ connecting: true, playing: false, message: `Tuning in to ${s.name}…` });
+    connectTimer = setTimeout(() => {
+      connectTimer = null;
+      if (!state.connecting) return;
+      stop();
+      emit({ message: 'That station did not start. Try another.' });
+    }, RADIO.CONNECT_TIMEOUT_MS);
     try {
       await audio.play();
       skips = 0;
       remember(s.id);
-      emit({ playing: true, message: '' });
+      // Not `playing: true` — that is the element's own `playing` event to declare, and on a
+      // slow stream it arrives well after this resolves. The message goes now because the
+      // station it named is the one that was accepted.
+      emit({ message: '' });
       // The API asks to be told when a station is played. This is the one of its two requests
       // a browser can actually honour; the User-Agent one it cannot.
       void doFetch(`${RADIO.API}/json/url/${s.id}`).catch(() => {});
     } catch {
-      emit({ playing: false, message: 'That station would not play. Try another.' });
+      stopWaiting();
+      emit({ playing: false, connecting: false, message: 'That station would not play. Try another.' });
     }
   };
 
@@ -180,7 +235,9 @@ export function createTuner(doFetch: typeof fetch = fetch.bind(globalThis)): Tun
     },
     dispose() {
       audio.removeEventListener('error', onError);
-      audio.removeEventListener('stalled', onError);
+      audio.removeEventListener('stalled', onStalled);
+      audio.removeEventListener('playing', onPlaying);
+      audio.removeEventListener('waiting', onWaiting);
       stop();
       listeners.clear();
     },
