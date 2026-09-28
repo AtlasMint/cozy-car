@@ -82,7 +82,7 @@ const curtain = createCurtain(overlay);
 const hotkeys = createHotkeys();
 // The controls row is row-reverse, so the first one appended sits furthest right.
 createSettingsMenu(overlay, store, hotkeys);
-createModeToggle(overlay, store, hotkeys);
+const modeControl = createModeToggle(overlay, store, hotkeys);
 const picker = createVehiclePicker(overlay, store, hotkeys);
 createVolumeControl(overlay, store, hotkeys);
 const weather = createWeatherSource(store);
@@ -364,6 +364,7 @@ async function changeMode(target: Mode): Promise<void> {
     return;
   }
   transitioning = true;
+  modeControl.setBusy(true);
   const fade = store.get().reducedMotion ? INTERACTION.SWAP_FADE_MS / 2 : INTERACTION.SWAP_FADE_MS;
   try {
     store.set({ focusedObject: null });
@@ -389,6 +390,7 @@ async function changeMode(target: Mode): Promise<void> {
   } finally {
     await curtain.reveal(fade);
     transitioning = false;
+    modeControl.setBusy(false);
   }
   drain();
 }
