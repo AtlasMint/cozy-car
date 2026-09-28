@@ -2,6 +2,7 @@ import { AUDIO } from '../core/constants';
 import { BUS_LABEL, BUS_NAMES, BUS_STORE_KEY, type Bus } from '../audio/mixer';
 import type { AppState, Store } from '../core/store';
 import { createMenu, menuRow } from './menu';
+import type { Hotkeys } from './hotkeys';
 import { el, type Overlay } from './overlay';
 import { tip } from './tooltip';
 
@@ -49,7 +50,7 @@ const ICON_MUTED = /* html */ `<svg viewBox="0 0 24 24" width="18" height="18" a
 <path d="M15.8 9.6l4.8 4.8M20.6 9.6l-4.8 4.8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
 </svg>`;
 
-export function createVolumeControl(overlay: Overlay, store: Store): { dispose(): void } {
+export function createVolumeControl(overlay: Overlay, store: Store, hotkeys: Hotkeys): { dispose(): void } {
   // A div, not a label: a button inside a label forwards its activation to the labelled
   // control, which would make every click on the speaker also grab the slider.
   const wrap = el('div', 'ui-range');
@@ -107,11 +108,15 @@ export function createVolumeControl(overlay: Overlay, store: Store): { dispose()
     store.set({ masterVolume: v });
   });
 
-  button.addEventListener('click', () => {
+  const flip = () => {
     const next = toggleMute(store.get().masterVolume, restore);
     restore = next.restore;
     store.set({ masterVolume: next.volume });
-  });
+  };
+  button.addEventListener('click', flip);
+  // M is the speaker, not a second kind of mute: it goes through the same pure function, so the
+  // level it un-mutes to is the one the button would have returned to.
+  const unbind = hotkeys.register({ key: 'm', label: 'M', hint: 'Mute everything', onDown: flip });
 
   render(store.get().masterVolume);
   const unsub = store.subscribe('masterVolume', render);
@@ -122,6 +127,7 @@ export function createVolumeControl(overlay: Overlay, store: Store): { dispose()
   return {
     dispose() {
       unsub();
+      unbind();
       for (const u of unsubs) u();
       for (const u of untips) u();
       menu.dispose();

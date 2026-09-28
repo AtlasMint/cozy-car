@@ -1,4 +1,5 @@
 import type { Store } from '../core/store';
+import type { Hotkeys } from './hotkeys';
 import { createMenu } from './menu';
 import { el, type Overlay } from './overlay';
 import { tip } from './tooltip';
@@ -9,8 +10,26 @@ import { tip } from './tooltip';
  * Reduce motion and Low quality used to be two checkboxes sitting in the bottom-right row,
  * created by the start screen, which owned them for no reason beyond having been written first.
  * They live here now, and the row is three controls shorter.
+ *
+ * The shortcut list is the hotkey registry read back rather than a sentence kept in step by
+ * hand, and it is drawn each time the menu opens — this control is built before most of the
+ * keys are bound, and the keys a vehicle brings with it are not the same on every vehicle.
  */
-export function createSettingsMenu(overlay: Overlay, store: Store): { dispose(): void } {
+const CSS = /* css */ `
+#overlay .ui-keys { display: flex; flex-direction: column; gap: 6px; }
+#overlay .ui-keys div { display: grid; grid-template-columns: 26px 1fr; align-items: center; gap: 10px; font-size: 13px; }
+#overlay .ui-keys .ui-kbd { justify-self: start; }
+`;
+
+let cssInjected = false;
+
+export function createSettingsMenu(overlay: Overlay, store: Store, hotkeys: Hotkeys): { dispose(): void } {
+  if (!cssInjected) {
+    const style = document.createElement('style');
+    style.textContent = CSS;
+    document.head.appendChild(style);
+    cssInjected = true;
+  }
   const host = el('div');
   overlay.controls.appendChild(host);
   const menu = createMenu(host, { label: 'More settings', align: 'right' });
@@ -43,9 +62,21 @@ export function createSettingsMenu(overlay: Overlay, store: Store): { dispose():
   );
 
   menu.body.appendChild(el('hr'));
-  const keys = el('div', 'ui-hint');
-  keys.innerHTML = 'Press <span class="ui-kbd">V</span> to change vehicle, <span class="ui-kbd">F</span> to switch between Chill and Focus.';
+  menu.body.appendChild(el('h3', undefined, 'Shortcuts'));
+  const keys = el('div', 'ui-keys');
   menu.body.appendChild(keys);
+  const paintKeys = () => {
+    keys.replaceChildren();
+    for (const s of hotkeys.shortcuts()) {
+      const row = el('div');
+      row.append(el('span', 'ui-kbd', s.label), el('span', 'ui-hint', s.hint));
+      keys.appendChild(row);
+    }
+  };
+  paintKeys();
+  // The menu's own handler runs first and opens it; this repaint lands in the same task, so
+  // nothing is ever on screen stale.
+  menu.trigger.addEventListener('click', paintKeys);
 
   const unsubs = [
     store.subscribe('reducedMotion', (v) => (motion.input.checked = v)),

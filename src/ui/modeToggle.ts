@@ -1,12 +1,13 @@
 import type { Store, Mode } from '../core/store';
 import { el, type Overlay } from './overlay';
+import type { Hotkeys } from './hotkeys';
 import { tip } from './tooltip';
 
 /**
  * Two-state control labelled Chill / Focus. Keyboard accessible, aria-pressed, bound to F.
  * The label names the state the user is in; those two words are used identically everywhere.
  */
-export function createModeToggle(overlay: Overlay, store: Store): { dispose(): void } {
+export function createModeToggle(overlay: Overlay, store: Store, hotkeys: Hotkeys): { dispose(): void } {
   const seg = el('div', 'ui-seg');
   seg.setAttribute('role', 'group');
   seg.setAttribute('aria-label', 'Mode');
@@ -27,19 +28,18 @@ export function createModeToggle(overlay: Overlay, store: Store): { dispose(): v
   const unsub = store.subscribe('mode', render);
   overlay.controls.appendChild(seg);
 
-  const onKey = (e: KeyboardEvent) => {
-    if (e.key.toLowerCase() !== 'f' || e.metaKey || e.ctrlKey || e.altKey) return;
-    const t = e.target as HTMLElement | null;
-    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-    store.set({ mode: store.get().mode === 'chill' ? 'focus' : 'chill' });
-  };
-  window.addEventListener('keydown', onKey);
+  const unbind = hotkeys.register({
+    key: 'f',
+    label: 'F',
+    hint: 'Chill or Focus',
+    onDown: () => store.set({ mode: store.get().mode === 'chill' ? 'focus' : 'chill' }),
+  });
 
   return {
     dispose() {
       unsub();
       for (const u of untips) u();
-      window.removeEventListener('keydown', onKey);
+      unbind();
       seg.remove();
     },
   };

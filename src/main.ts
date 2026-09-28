@@ -28,6 +28,7 @@ import { createRegistry } from './interaction/interactables';
 import { createRaycast } from './interaction/raycast';
 import { createFocusCamera } from './interaction/focusCamera';
 import { createGunControl } from './ui/gunControl';
+import { createHotkeys } from './ui/hotkeys';
 import { createSpotifyPanel } from './ui/spotifyPanel';
 import { kindLabel } from './weather/wmo';
 import * as THREE from 'three';
@@ -76,11 +77,14 @@ lighting.setVehicle(bootSpec);
 
 const overlay = createOverlay(store);
 const curtain = createCurtain(overlay);
+// One keyboard for the whole app: every control binds its key here rather than bringing its own
+// listener and its own copy of the guards, and the shortcut list is this read back.
+const hotkeys = createHotkeys();
 // The controls row is row-reverse, so the first one appended sits furthest right.
-createSettingsMenu(overlay, store);
-createModeToggle(overlay, store);
-const picker = createVehiclePicker(overlay, store);
-createVolumeControl(overlay, store);
+createSettingsMenu(overlay, store, hotkeys);
+createModeToggle(overlay, store, hotkeys);
+const picker = createVehiclePicker(overlay, store, hotkeys);
+createVolumeControl(overlay, store, hotkeys);
 createStartScreen(overlay, store);
 const weather = createWeatherSource(store);
 createWeatherBadge(overlay, store, weather);
@@ -132,8 +136,22 @@ const raycast = createRaycast(canvas, iso, registry, store, overlay.panels, (id)
 createFocusCamera(iso, registry, store);
 // Only one vehicle has a gun; on the other three this registers nothing and listens for a key
 // that will never do anything.
-const gunControl = createGunControl(store, registry, () => layers.gunshot());
+const gunControl = createGunControl(store, registry, hotkeys, () => layers.gunshot());
 gunControl.setVehicle(car);
+// R is the radio the same way clicking it is: it sets the focus the panel watches, and pressing
+// it again is the way back out, which is what Escape already does from the focus camera. Not
+// before the engine, like every other key that reaches the car: the start screen is still up,
+// and the camera would push in behind it.
+hotkeys.register({
+  key: 'r',
+  label: 'R',
+  hint: 'Open the radio',
+  onDown() {
+    const st = store.get();
+    if (!st.engineOn) return;
+    store.set({ focusedObject: st.focusedObject === 'radio' ? null : 'radio' });
+  },
+});
 // One stable vector the panel keeps forever; a swap copies the new anchor into it.
 const radioAnchor = new THREE.Vector3().copy(car.radio.face);
 const spotify = createSpotifyPanel(overlay, store, iso, radioAnchor, canvas, weather);
@@ -400,6 +418,7 @@ loop.start();
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     loop.stop();
+    hotkeys.dispose();
     car.dispose();
     mixer.dispose();
     rig.dispose();

@@ -58,6 +58,22 @@ slider itself stays the output level and the speaker mutes everything. The dots 
 row hold Reduce motion, Low quality and the keyboard shortcuts. Everything interactive carries a
 tooltip, on hover after a moment and on keyboard focus immediately.
 
+Keys go through one registry ([src/ui/hotkeys.ts](src/ui/hotkeys.ts)) rather than a listener per
+control: the guards — no modifiers, not while typing, and never the space bar belonging to a
+focused button — are written once, and the shortcut list in the More menu is that registry read
+back, so a key cannot be advertised without being bound or bound without being advertised.
+
+| Key | |
+|---|---|
+| **V** | Change vehicle |
+| **F** | Chill or Focus |
+| **M** | Mute everything |
+| **R** | Open the radio |
+| **Esc** | Back out of whatever the camera is pushed in on |
+
+A key with no label is deliberately absent from that list and from the table above. Registering
+one without a label is how something stays worth finding out about.
+
 ## Audio
 
 Nothing ships under `public/audio/`, so the synthesized layers **are** the product rather than
@@ -152,9 +168,10 @@ src/
   interaction/ interactables registry, raycast, focusCamera
   audio/       mixer (four buses), layers, engineVoice (the pulse-train engine),
                rain (the generated texture), stations + tuner (live radio)
-  ui/          overlay, curtain (the swap fade), menu (the More popovers), tooltip,
-               startScreen, modeToggle, vehiclePicker, weatherBadge, volume (mute, slider
-               and the balance menu), settingsMenu, locationPicker, spotifyPanel, debugStats
+  ui/          overlay, curtain (the swap fade), menu (the More popovers), tooltip, hotkeys
+               (every key binding, and the list the settings menu shows), startScreen,
+               modeToggle, vehiclePicker, weatherBadge, volume (mute, slider and the balance
+               menu), settingsMenu, locationPicker, spotifyPanel, gunControl, debugStats
   util/        math, tests/
 ```
 

@@ -1,5 +1,6 @@
 import type { Store } from '../core/store';
 import type { Registry } from '../interaction/interactables';
+import type { Hotkeys } from './hotkeys';
 import type { Vehicle } from '../scene/car/car';
 
 /**
@@ -17,10 +18,7 @@ export interface GunControl {
   dispose(): void;
 }
 
-/** Controls that do something with space themselves. It belongs to them while they have focus. */
-const TAKES_SPACE = ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'A'];
-
-export function createGunControl(store: Store, registry: Registry, report: () => void): GunControl {
+export function createGunControl(store: Store, registry: Registry, hotkeys: Hotkeys, report: () => void): GunControl {
   let car: Vehicle | null = null;
   let release: (() => void) | null = null;
 
@@ -34,22 +32,24 @@ export function createGunControl(store: Store, registry: Registry, report: () =>
     return fired;
   };
 
-  const onKey = (e: KeyboardEvent) => {
-    if (e.code !== 'Space' || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
-    // Space activates whatever control has focus; that is the browser's rule, not ours, and
-    // taking it away would break every button on the overlay for keyboard users.
-    const active = document.activeElement as HTMLElement | null;
-    if (active && (active.isContentEditable || TAKES_SPACE.includes(active.tagName))) return;
-    // Matches the click path, which stops casting entirely while something is focused: with the
-    // camera pushed in on the radio the gun is off screen, and firing what you cannot see is
-    // just a noise from nowhere.
-    if (store.get().focusedObject) return;
-    if (!car?.body.gun) return;
-    // Only once we know we are handling it: otherwise this would eat the page's own space.
-    e.preventDefault();
-    pull();
-  };
-  window.addEventListener('keydown', onKey);
+  // No label: the vehicle this key belongs to is not on the picker either, and a shortcut list
+  // that gives away the one thing you have to find out about would be giving it away.
+  //
+  // The registry already withholds space from a focused button and from anything being typed
+  // into, which is the browser's own rule rather than ours. What it cannot know is that three
+  // vehicles out of four have nothing to fire, and on those the key was never ours to take.
+  const unbind = hotkeys.register({
+    key: 'space',
+    onDown() {
+      // Matches the click path, which stops casting entirely while something is focused: with
+      // the camera pushed in on the radio the gun is off screen, and firing what you cannot see
+      // is just a noise from nowhere.
+      if (store.get().focusedObject) return false;
+      if (!car?.body.gun) return false;
+      pull();
+      return true;
+    },
+  });
 
   return {
     setVehicle(next) {
@@ -68,7 +68,7 @@ export function createGunControl(store: Store, registry: Registry, report: () =>
       });
     },
     dispose() {
-      window.removeEventListener('keydown', onKey);
+      unbind();
       release?.();
     },
   };

@@ -1,6 +1,7 @@
 import { isListedVehicle, LISTED_VEHICLES, type ListedVehicleId, type Store, type VehicleId } from '../core/store';
 import { VEHICLES, VEHICLE_ORDER } from '../core/vehicles';
 import { el, type Overlay } from './overlay';
+import type { Hotkeys } from './hotkeys';
 import { tip } from './tooltip';
 
 /**
@@ -17,7 +18,7 @@ export interface VehiclePicker {
   dispose(): void;
 }
 
-export function createVehiclePicker(overlay: Overlay, store: Store): VehiclePicker {
+export function createVehiclePicker(overlay: Overlay, store: Store, hotkeys: Hotkeys): VehiclePicker {
   const seg = el('div', 'ui-seg');
   seg.setAttribute('role', 'group');
   seg.setAttribute('aria-label', 'Vehicle');
@@ -56,16 +57,14 @@ export function createVehiclePicker(overlay: Overlay, store: Store): VehiclePick
   const booted = store.get().vehicle;
   let lastListed: ListedVehicleId = isListedVehicle(booted) ? booted : LISTED_VEHICLES[0]!;
 
-  // V cycles. Same guards as the mode toggle, plus e.repeat — holding the key would otherwise
-  // queue a swap per keydown, and a swap is a scene teardown, not a boolean flip.
+  // V cycles. The registry withholds auto-repeat unless a key asks for it, which this one does
+  // not: holding the key would queue a swap per repeat, and a swap is a scene teardown rather
+  // than a boolean flip.
   //
-  // T does not cycle. It reaches a vehicle the picker does not offer and the hash will not
-  // accept, and V brings you back to the one you left rather than to the top of the list.
-  const onKey = (e: KeyboardEvent) => {
-    const key = e.key.toLowerCase();
-    if ((key !== 'v' && key !== 't') || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
-    const t = e.target as HTMLElement | null;
-    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  // T does not cycle, and carries no label, so it stays off the shortcut list. It reaches a
+  // vehicle the picker does not offer and the hash will not accept, and V brings you back to
+  // the one you left rather than to the top of the list.
+  const press = (key: 'v' | 't') => {
     if (seg.getAttribute('aria-busy') === 'true') return;
     // Read from the store, not from a cache, so a vehicle picked by clicking a button is
     // remembered exactly as one picked by pressing a key.
@@ -76,7 +75,10 @@ export function createVehiclePicker(overlay: Overlay, store: Store): VehiclePick
     store.set({ vehicle: next });
     status.textContent = `Switching to the ${VEHICLES[next].label}`;
   };
-  window.addEventListener('keydown', onKey);
+  const unbind = [
+    hotkeys.register({ key: 'v', label: 'V', hint: 'Change vehicle', onDown: () => press('v') }),
+    hotkeys.register({ key: 't', onDown: () => press('t') }),
+  ];
 
   return {
     setBusy(on) {
@@ -90,7 +92,7 @@ export function createVehiclePicker(overlay: Overlay, store: Store): VehiclePick
     dispose() {
       unsub();
       for (const u of untips) u();
-      window.removeEventListener('keydown', onKey);
+      for (const u of unbind) u();
       seg.remove();
     },
   };
