@@ -144,6 +144,11 @@ export const MOTION = {
   /** Mode blend and ignition ramp spring frequencies (rad/s). */
   MODE_OMEGA: 2.2,
   ENGINE_OMEGA: 3.0,
+  /**
+   * The engine going off, on the way into Park. A real engine stops in about half a second;
+   * at ENGINE_OMEGA it would take three times that, and the note would trail on into the lot.
+   */
+  ENGINE_OFF_OMEGA: 6,
   IDLE_HZ: 11,
   IDLE: {
     chill: { y: 0.006, roll: 0.25 * DEG },

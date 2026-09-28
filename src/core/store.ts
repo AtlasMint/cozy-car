@@ -1,4 +1,9 @@
-export type Mode = 'chill' | 'focus';
+/**
+ * Where the vehicle is. Park is an empty lot with the engine off and where the app opens;
+ * Chill is the roadside, idling; Focus is the road going past. The rules for moving between
+ * them are in mode.ts.
+ */
+export type Mode = 'park' | 'chill' | 'focus';
 export type VehicleId = 'hatchback' | 'van' | 'sports' | 'tank';
 
 /**
@@ -39,7 +44,7 @@ export interface WeatherState {
 }
 
 export interface AppState {
-  engineOn: boolean; // false until the user's first gesture
+  /** The mode asked for. What is on screen may lag it by a curtain; see main.ts. */
   mode: Mode;
   vehicle: VehicleId;
   weather: WeatherState | null;
@@ -104,8 +109,8 @@ export function createStore(initial: AppState): Store {
 }
 
 export const defaultState: AppState = {
-  engineOn: false,
-  mode: 'chill',
+  // Always. Mode is not remembered between sessions; the vehicle is.
+  mode: 'park',
   vehicle: 'hatchback',
   weather: null,
   weatherStatus: 'idle',

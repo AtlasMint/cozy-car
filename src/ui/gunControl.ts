@@ -1,3 +1,4 @@
+import { engineOn } from '../core/mode';
 import type { Store } from '../core/store';
 import type { Registry } from '../interaction/interactables';
 import type { Hotkeys } from './hotkeys';
@@ -25,8 +26,8 @@ export function createGunControl(store: Store, registry: Registry, hotkeys: Hotk
   const pull = (): boolean => {
     const gun = car?.body.gun;
     if (!gun) return false;
-    // Nothing fires before the engine does — the start screen is still up until then.
-    if (!store.get().engineOn) return false;
+    // Nothing fires from a parked vehicle.
+    if (!engineOn(store.get().mode)) return false;
     const fired = car!.fire();
     if (fired) report();
     return fired;

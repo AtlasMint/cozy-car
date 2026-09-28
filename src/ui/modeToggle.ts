@@ -1,3 +1,4 @@
+import { nextMode } from '../core/mode';
 import type { Store, Mode } from '../core/store';
 import { el, type Overlay } from './overlay';
 import type { Hotkeys } from './hotkeys';
@@ -32,7 +33,7 @@ export function createModeToggle(overlay: Overlay, store: Store, hotkeys: Hotkey
     key: 'f',
     label: 'F',
     hint: 'Chill or Focus',
-    onDown: () => store.set({ mode: store.get().mode === 'chill' ? 'focus' : 'chill' }),
+    onDown: () => store.set({ mode: nextMode('f', store.get().mode) ?? store.get().mode }),
   });
 
   return {

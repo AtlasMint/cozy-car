@@ -3,7 +3,7 @@ import { loadPrefs, sanitizePrefs, savePrefs, PERSIST_KEY } from '../../core/per
 
 describe('prefs persistence', () => {
   test('sanitize drops malformed values and clamps volume', () => {
-    expect(sanitizePrefs({ mode: 'focus', vehicle: 'spaceship', masterVolume: 1.7, reducedMotion: 'yes', quality: 'ultra' })).toEqual({ mode: 'focus', masterVolume: 1 });
+    expect(sanitizePrefs({ vehicle: 'spaceship', masterVolume: 1.7, reducedMotion: 'yes', quality: 'ultra' })).toEqual({ masterVolume: 1 });
     expect(sanitizePrefs({ vehicle: 'van' })).toEqual({ vehicle: 'van' });
     expect(sanitizePrefs(null)).toEqual({});
     expect(sanitizePrefs('nope')).toEqual({});
@@ -14,12 +14,25 @@ describe('prefs persistence', () => {
     const mem = new Map<string, string>();
     const storage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) };
     const saved = {
-      mode: 'focus', vehicle: 'sports', masterVolume: 0.4, reducedMotion: true, quality: 'low',
+      vehicle: 'sports', masterVolume: 0.4, reducedMotion: true, quality: 'low',
       volumeEngine: 1, volumeWeather: 0.3, volumeAmbience: 0.8, volumeMusic: 0.55,
     } as const;
     savePrefs(saved, storage);
     expect(mem.has(PERSIST_KEY)).toBe(true);
     expect(loadPrefs(storage)).toEqual({ ...saved });
+  });
+
+  test('the mode is not remembered, and one remembered by v0.5 is ignored', () => {
+    // The app opens parked, every time. savePrefs takes the whole state and must leave the
+    // mode out of it; loadPrefs must drop one that an older build wrote.
+    const mem = new Map<string, string>();
+    const storage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) };
+    // A variable rather than a literal: the point is that a state *carrying* a mode is written
+    // without it, and a literal with an extra key is refused by the compiler before it can be.
+    const state = { mode: 'focus', vehicle: 'van', masterVolume: 0.5, reducedMotion: false, quality: 'high', volumeEngine: 1, volumeWeather: 1, volumeAmbience: 1, volumeMusic: 1 } as const;
+    savePrefs(state, storage);
+    expect(JSON.parse(mem.get(PERSIST_KEY)!)).not.toHaveProperty('mode');
+    expect(sanitizePrefs({ mode: 'focus', vehicle: 'van' })).toEqual({ vehicle: 'van' });
   });
 
   test('bus levels are clamped and each one survives on its own', () => {

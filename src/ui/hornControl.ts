@@ -1,5 +1,4 @@
 import { AUDIO } from '../core/constants';
-import type { Store } from '../core/store';
 import type { Registry } from '../interaction/interactables';
 import type { Hotkeys } from './hotkeys';
 import type { Vehicle } from '../scene/car/car';
@@ -13,8 +12,9 @@ import type { Vehicle } from '../scene/car/car';
  * A key is held and a click is an instant, so they are not the same sound: holding H holds the
  * horn for as long as you hold it, and a click is a tap of HORN_MIX.tapS. Beep, or honk.
  *
- * Unlike the gun, every vehicle has one — so this always has something to point at, and the
- * only thing that can turn it off is an engine that has not been started yet.
+ * Unlike the gun, every vehicle has one — so this always has something to point at. And it
+ * works with the engine off: a horn is on a permanent circuit, which is also the one thing you
+ * want a parked car to be able to do.
  */
 export interface HornControl {
   /** Point it at the vehicle that just arrived, releasing whatever the last one had. */
@@ -22,16 +22,12 @@ export interface HornControl {
   dispose(): void;
 }
 
-export function createHornControl(store: Store, registry: Registry, hotkeys: Hotkeys, sound: (on: boolean) => void): HornControl {
+export function createHornControl(registry: Registry, hotkeys: Hotkeys, sound: (on: boolean) => void): HornControl {
   let car: Vehicle | null = null;
   let release: (() => void) | null = null;
   let tap: ReturnType<typeof setTimeout> | null = null;
 
-  // Nothing sounds before the engine does — the start screen is still up until then.
-  const press = (on: boolean) => {
-    if (on && !store.get().engineOn) return;
-    sound(on);
-  };
+  const press = (on: boolean) => sound(on);
 
   const beep = () => {
     if (tap !== null) clearTimeout(tap);

@@ -21,6 +21,8 @@ export interface VehicleInputs {
   blend: number;
   /** 0 = engine off, 1 = running (smoothed). */
   engine: number;
+  /** 0..1 accessory power: the radio is on before the engine is. */
+  accessory: number;
   speed: number;
   speedAccel: number;
   ampScale: number;
@@ -143,7 +145,7 @@ export function createVehicle(stage: Stage, v: VehicleSpec = HATCHBACK): Vehicle
       lights = damp(lights, inp.engine > 0.02 ? 1 : 0, MOTION.IGNITION_LIGHTS_LAMBDA, inp.dt);
       body.setLights(lights, lights);
       body.setDashGlow(lights);
-      radio.setPower(lights);
+      radio.setPower(Math.max(lights, inp.accessory));
 
       idle.update(inp.dt, inp.elapsed, out.y, inp.mode, inp.reducedMotion);
       return lights;

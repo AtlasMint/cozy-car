@@ -65,13 +65,6 @@ const CSS = /* css */ `
 #overlay .ui-hint { color: var(--ui-ink-dim); font-size: 13px; }
 #overlay .ui-kbd { display: inline-block; min-width: 1.4em; padding: 0 5px; border: 1px solid var(--ui-line); border-radius: 5px; font-size: 12px; text-align: center; color: var(--ui-ink-dim); }
 
-#overlay .start { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: auto; background: radial-gradient(ellipse at 50% 60%, rgba(0,0,0,0.0) 30%, rgba(0,0,0,0.28) 100%); transition: opacity 600ms ease; }
-#overlay .start.is-hidden { opacity: 0; pointer-events: none; }
-#overlay .start-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; transform: translateY(18vh); }
-#overlay .start button { font-size: 19px; font-weight: 600; padding: 15px 28px; background: var(--ui-bg-strong); border-color: var(--ui-line); }
-#overlay .start button:hover { border-color: var(--ui-accent); }
-#overlay .start .ui-hint { text-align: center; max-width: 30ch; }
-
 #overlay .label { position: absolute; transform: translate(-50%, -140%); padding: 5px 10px; border-radius: 999px; background: var(--ui-bg-strong); border: 1px solid var(--ui-line); font-size: 13px; font-weight: 500; white-space: nowrap; pointer-events: none; }
 
 @media (max-width: 640px) {
@@ -85,7 +78,6 @@ const CSS = /* css */ `
   #overlay .ui-icon-solo { width: 32px; height: 32px; }
   #overlay .ui-seg button { padding: 6px 10px; }
   #overlay .ui-range input[type=range] { width: 64px; }
-  #overlay .start-inner { transform: translateY(24vh); }
 }
 `;
 

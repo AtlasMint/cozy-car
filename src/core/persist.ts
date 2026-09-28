@@ -1,13 +1,15 @@
-import { isListedVehicle, type AppState, type ListedVehicleId, type Mode, type Store, type VolumeKey } from './store';
+import { isListedVehicle, type AppState, type ListedVehicleId, type Store, type VolumeKey } from './store';
 
 /**
  * Persists the handful of user preferences under one namespaced localStorage key and
  * restores them at boot. Weather has its own cache; the Spotify URI has its own key.
+ *
+ * The mode is not among them: the app opens parked, every time. A `mode` written by v0.5 is
+ * still in some people's storage and is dropped by the sanitizer like any other unknown key.
  */
 export const PERSIST_KEY = 'shotgun.prefs.v1';
 
 export interface Prefs {
-  mode?: Mode;
   vehicle?: ListedVehicleId;
   masterVolume?: number;
   volumeEngine?: number;
@@ -20,7 +22,7 @@ export interface Prefs {
 
 const VOLUME_KEYS: VolumeKey[] = ['volumeEngine', 'volumeWeather', 'volumeAmbience', 'volumeMusic'];
 
-const KEYS: (keyof Prefs)[] = ['mode', 'vehicle', 'masterVolume', ...VOLUME_KEYS, 'reducedMotion', 'quality'];
+const KEYS: (keyof Prefs)[] = ['vehicle', 'masterVolume', ...VOLUME_KEYS, 'reducedMotion', 'quality'];
 
 /** A 0..1 level, or undefined if it is not a usable number. */
 function level(v: unknown): number | undefined {
@@ -32,7 +34,6 @@ export function sanitizePrefs(raw: unknown): Prefs {
   const out: Prefs = {};
   if (!raw || typeof raw !== 'object') return out;
   const r = raw as Record<string, unknown>;
-  if (r.mode === 'chill' || r.mode === 'focus') out.mode = r.mode;
   if (isListedVehicle(r.vehicle)) out.vehicle = r.vehicle;
   const master = level(r.masterVolume);
   if (master !== undefined) out.masterVolume = master;
@@ -57,7 +58,7 @@ export function loadPrefs(storage: Pick<Storage, 'getItem'> | null = safeStorage
 
 export function savePrefs(state: Pick<AppState, keyof Prefs>, storage: Pick<Storage, 'setItem' | 'getItem'> | null = safeStorage()): void {
   if (!storage) return;
-  const prefs: Prefs = { mode: state.mode, masterVolume: state.masterVolume, reducedMotion: state.reducedMotion, quality: state.quality };
+  const prefs: Prefs = { masterVolume: state.masterVolume, reducedMotion: state.reducedMotion, quality: state.quality };
   // An unlisted vehicle is never written. Dropping the key is not enough — that would still
   // overwrite the stored choice with nothing — so the last listed one is read back and carried
   // forward, and reaching an unlisted vehicle costs the user no setting at all.

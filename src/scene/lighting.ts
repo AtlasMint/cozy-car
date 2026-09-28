@@ -27,8 +27,11 @@ export interface LightingRig {
   cabin: THREE.PointLight;
   dash: THREE.PointLight;
   setLook(look: LightLook): void;
-  /** 0..1: dash glow and the warm cabin pocket come up with the engine. */
-  setIgnition(k: number): void;
+  /**
+   * Two circuits. `accessory` is the cabin light and the living light — what a parked car has
+   * with the key turned one click. `ignition` is the dash glow, and it is the engine ramp.
+   */
+  setPower(p: { accessory: number; ignition: number }): void;
   /** 0..1 headlight cones and ground pool (night × ignition). */
   setHeadlights(k: number): void;
   /** Move every light and the shadow frustum onto a different vehicle. */
@@ -156,13 +159,14 @@ export function createLighting(): LightingRig {
     return l;
   });
 
+  let accessory = 0;
   let ignition = 0;
   let night = 0;
   let livingScale = 0;
   const applyCabin = () => {
-    cabin.intensity = 0.7 + 2.3 * ignition + 1.6 * ignition * night;
+    cabin.intensity = 0.7 + 2.3 * accessory + 1.6 * accessory * night;
     dash.intensity = (1.3 + 0.8 * night) * ignition;
-    living.intensity = livingScale * (0.5 + 1.8 * ignition + 1.2 * ignition * night);
+    living.intensity = livingScale * (0.5 + 1.8 * accessory + 1.2 * accessory * night);
   };
 
   return {
@@ -180,8 +184,9 @@ export function createLighting(): LightingRig {
       hemi.intensity = look.hemiIntensity + look.flash * 2.2;
       applyCabin();
     },
-    setIgnition(k) {
-      ignition = k;
+    setPower(p) {
+      accessory = p.accessory;
+      ignition = p.ignition;
       applyCabin();
     },
     setVehicle(spec) {
