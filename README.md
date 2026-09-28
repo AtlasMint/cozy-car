@@ -1,14 +1,14 @@
 # Shotgun
 
-Three open-top vehicles on a shelf, idling in your weather.
+Three open-top vehicles on a shelf, parked in your weather.
 
 The view is a fixed isometric shot from the rear-left quarter — you look down into the cabin
 and sit behind the driver. Pick a **hatchback**, a **camper van** or a **yellow sports car**;
-each has its own shake, engine note, cruising speed, framing and interior. The engine runs, the body
-trembles on its springs, the air freshener swings, and the weather outside is fetched from
-Open-Meteo for wherever you are. Two modes: **Chill** (parked, idling) and **Focus** (the
-world scrolls past a stationary car). One thing to click: the radio, which pushes the camera
-in and opens Spotify.
+each has its own shake, engine note, cruising speed, framing and interior. The body trembles on
+its springs, the air freshener swings, and the weather outside is fetched from Open-Meteo for
+wherever you are. Three modes: **Park** (an empty lot, engine off — where it opens), **Chill**
+(the roadside, idling) and **Focus** (the world scrolls past a stationary car). Two things to
+click: the radio, which pushes the camera in and opens Spotify, and the horn.
 
 Built with Bun and three.js, no framework, no backend, no binary assets — the car, driver and
 scenery are all primitives built in code.
@@ -65,8 +65,9 @@ back, so a key cannot be advertised without being bound or bound without being a
 
 | Key | |
 |---|---|
+| **P** | Park |
+| **F** | Pull out, or Chill ⇄ Focus |
 | **V** | Change vehicle |
-| **F** | Chill or Focus |
 | **M** | Mute everything |
 | **H** | Horn — hold it |
 | **R** | Open the radio |
@@ -74,6 +75,35 @@ back, so a key cannot be advertised without being bound or bound without being a
 
 A key with no label is deliberately absent from that list and from the table above. Registering
 one without a label is how something stays worth finding out about.
+
+## Park, Chill, Focus
+
+The app opens **parked**: an empty lot on the same plinth, engine off, accessory power on — the
+cabin light and the radio work, the horn works, the driver's hands are in their lap. **P**
+parks from anywhere. **F** pulls out onto the roadside and starts the engine, and from there
+toggles Chill and Focus; it never jumps straight from Park to Focus, and the Focus button is
+disabled while parked rather than quietly routed through Chill. Mode is not remembered between
+sessions — the vehicle is.
+
+Into or out of Park the world under the vehicle changes, so that crosses the same fade a
+vehicle swap uses: the engine cranks in the dark and the fade back reveals the roadside with it
+running, or the lot comes up silent. There is no start screen; Park is what it used to stand
+in front of, and any first click or key press is the gesture Web Audio needs.
+
+The lot ([src/scene/world/lot.ts](src/scene/world/lot.ts)) is the vehicle nose-in to a kerb in
+the middle bay of a row of three, the aisle behind it, a verge with a lamp post and a couple of
+trees ahead, a low wall along the far edge, nobody else. Nose-in is the camera's choice: from
+the rear-left quarter a prop can stand in front of the cabin only if both its x and z are
+smaller, so anything ahead of the nose or beyond the far wall is clear however tall and the
+near-rear quadrant may hold nothing but paint. `clearOfCabin` is that inequality and a test
+runs it over every standing thing in the lot for every vehicle. The camper, parked, has a
+picnic table on the verge beside the kerb — two chairs, a cooler, a lantern with a pool of its
+own at night — which is where the swivelled passenger seat has been looking since v0.4.
+
+The road and the scenery, and the lot, are each a `World`
+([src/scene/world/world.ts](src/scene/world/world.ts)); both stand behind one face
+([worlds.ts](src/scene/world/worlds.ts)) so the tick and the weather director never know which
+is under the wheels.
 
 ## The horn
 
@@ -181,8 +211,10 @@ Every tunable is in [src/core/constants.ts](src/core/constants.ts), grouped by s
 
 ```
 src/
-  core/        store, loop, renderer, isoCamera, constants, persist, vehicles (the three specs)
-  scene/       stage (node hierarchy), lighting, driver/, world/
+  core/        store, loop, renderer, isoCamera, constants, persist, mode (the three modes
+               and the rule for moving between them), vehicles (the three specs)
+  scene/       stage (node hierarchy), lighting, driver/, world/ (the World interface, the
+               road + scenery treadmill, the lot, and the face both stand behind)
     car/       the machinery that builds any vehicle: parts (Builder + materials), car,
                wheels, radio, exhaust; bodies/ has one file per vehicle
   motion/      engineRig (vibration model, driven by a per-vehicle profile), spring
@@ -191,10 +223,9 @@ src/
   audio/       mixer (four buses), layers, engineVoice (the pulse-train engine),
                rain (the generated texture), stations + tuner (live radio)
   ui/          overlay, curtain (the swap fade), menu (the More popovers), tooltip, hotkeys
-               (every key binding, and the list the settings menu shows), startScreen,
-               modeToggle, vehiclePicker, weatherBadge, volume (mute, slider and the balance
-               menu), settingsMenu, locationPicker, spotifyPanel, gunControl, hornControl,
-               debugStats
+               (every key binding, and the list the settings menu shows), modeToggle,
+               vehiclePicker, weatherBadge, volume (mute, slider and the balance menu),
+               settingsMenu, locationPicker, spotifyPanel, gunControl, hornControl, debugStats
   util/        math, tests/
 ```
 
@@ -276,6 +307,6 @@ Nothing else needs to change.
 
 See [docs/PLAN-car-init.md](docs/PLAN-car-init.md) for the original implementation plan and
 [docs/archive/](docs/archive/) for the version logs (`v0.1` cutaway, `v0.2` open roof, `v0.3`
-three vehicles, `v0.4` full-height camper, `v0.5` controls and mix, `v0.6` park, horn and keys —
-in progress), and [docs/PLAN-cars.md](docs/PLAN-cars.md), [docs/PLAN-ui.md](docs/PLAN-ui.md)
-and [docs/PLAN-park.md](docs/PLAN-park.md) for the plans v0.3, v0.5 and v0.6 follow.
+three vehicles, `v0.4` full-height camper, `v0.5` controls and mix, `v0.6` park, horn and
+keys), and [docs/PLAN-cars.md](docs/PLAN-cars.md), [docs/PLAN-ui.md](docs/PLAN-ui.md) and
+[docs/PLAN-park.md](docs/PLAN-park.md) for the plans v0.3, v0.5 and v0.6 followed.
