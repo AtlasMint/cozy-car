@@ -5,8 +5,7 @@ import { bindPersistence, loadPrefs } from './core/persist';
 import { createDebugStats } from './ui/debugStats';
 import { createIsoCamera } from './core/isoCamera';
 import { createStage } from './scene/stage';
-import { createRoad } from './scene/world/road';
-import { createScenery } from './scene/world/scenery';
+import { createRoadWorld } from './scene/world/world';
 import { createLighting } from './scene/lighting';
 import { createVehicle, type Vehicle } from './scene/car/car';
 import { VEHICLES, type VehicleSpec } from './core/vehicles';
@@ -56,10 +55,9 @@ const qualityWasChosen = prefs.quality !== undefined;
 const stage = createStage();
 const iso = createIsoCamera();
 
-const road = createRoad(rig.renderer.capabilities.getMaxAnisotropy());
-stage.slab.add(road.mesh);
-const scenery = createScenery();
-stage.slab.add(scenery.group);
+// The place the vehicle stands in. One object, whatever it is made of; see world/world.ts.
+const world = createRoadWorld(rig.renderer.capabilities.getMaxAnisotropy());
+stage.slab.add(world.group);
 
 const lighting = createLighting();
 stage.scene.add(lighting.group);
@@ -89,7 +87,7 @@ createVolumeControl(overlay, store, hotkeys);
 createStartScreen(overlay, store);
 const weather = createWeatherSource(store);
 createWeatherBadge(overlay, store, weather);
-const director = createWeatherDirector({ store, stage, lighting, road, scenery, car });
+const director = createWeatherDirector({ store, stage, lighting, world, car });
 weather.start();
 
 // Sound: one context, unlocked by the start gesture; layers follow the same drivers as the scene.
@@ -350,8 +348,7 @@ loop.onTick((dt, elapsed) => {
   // One damped speed value feeds road scroll, scenery, wheel spin, motion and (later) audio.
   const speed = speedSpring.step(st.mode === 'focus' && st.engineOn ? SPEED.FOCUS : 0, dt, SPEED.OMEGA);
   const speedAccel = speedSpring.v;
-  road.scroll(speed * dt);
-  scenery.update(dt, speed);
+  world.update(dt, speed);
   const look = director.update(dt, speed, engine);
   rig.setNightExposure(look.night);
 
@@ -431,5 +428,5 @@ if (import.meta.hot) {
   });
 }
 
-(window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso, car, lighting, scenery, road, weather, director, renderer: rig.renderer, mixer, layers, registry, raycast, createVehicle, VEHICLES };
+(window as unknown as { shotgun: unknown }).shotgun = { store, loop, stage, iso, car, lighting, world, weather, director, renderer: rig.renderer, mixer, layers, registry, raycast, createVehicle, VEHICLES };
 (window as unknown as { __shotgunStats: unknown }).__shotgunStats = stats;

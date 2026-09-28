@@ -4,8 +4,7 @@ import { QUALITY, SPEED, WEATHER_FX } from '../core/constants';
 import type { Vec3, VehicleSpec } from '../core/vehicles';
 import type { Stage } from '../scene/stage';
 import type { LightingRig } from '../scene/lighting';
-import type { RoadRig } from '../scene/world/road';
-import type { SceneryRig } from '../scene/world/scenery';
+import type { LampHead, World } from '../scene/world/world';
 import type { Vehicle } from '../scene/car/car';
 import { damp } from '../util/math';
 import { createRain } from './effects/rain';
@@ -17,7 +16,7 @@ import { createLightning } from './effects/lightning';
 /**
  * Turns a WeatherState into what you see. Owns the effect modules, cross-fades every
  * intensity and colour over ~3 s so conditions never pop, and drives fog, sky, lighting,
- * road wetness, scenery lamps and the headlight cones.
+ * the world's wetness and lamps, and the headlight cones.
  */
 export interface WeatherLook {
   night: number;
@@ -43,8 +42,7 @@ export interface DirectorDeps {
   store: Store;
   stage: Stage;
   lighting: LightingRig;
-  road: RoadRig;
-  scenery: SceneryRig;
+  world: World;
   car: Vehicle;
 }
 
@@ -92,7 +90,7 @@ function targetsFor(weather: WeatherState | null, status: string): Targets {
 }
 
 export function createWeatherDirector(deps: DirectorDeps): WeatherDirector {
-  const { store, stage, lighting, road, scenery, car } = deps;
+  const { store, stage, lighting, world, car } = deps;
   const quality = store.get().quality;
   const rain = createRain(quality);
   const snow = createSnow(quality);
@@ -136,7 +134,7 @@ export function createWeatherDirector(deps: DirectorDeps): WeatherDirector {
   const nightKey = new THREE.Color(WEATHER_FX.NIGHT.key);
   const nightHemiSky = new THREE.Color(WEATHER_FX.NIGHT.hemiSky);
   const nightHemiGround = new THREE.Color(WEATHER_FX.NIGHT.hemiGround);
-  const heads: THREE.Vector3[] = [new THREE.Vector3(), new THREE.Vector3()];
+  const heads: LampHead[] = [0, 1].map(() => ({ position: new THREE.Vector3(), intensity: 1 }));
   const drift = new THREE.Vector2();
 
   let targets = targetsFor(store.get().weather, store.get().weatherStatus);
@@ -188,10 +186,10 @@ export function createWeatherDirector(deps: DirectorDeps): WeatherDirector {
 
       lighting.setLook({ keyColor, keyIntensity: keyI, hemiSky, hemiGround, hemiIntensity: hemiI, night: cur.night, flash });
       lighting.setHeadlights(cur.night * engine);
-      const n = scenery.streetlightHeads(heads);
+      const n = world.lampHeads(heads);
       lighting.updateStreetlights(heads, n, cur.night);
-      scenery.setNight(cur.night);
-      road.setWetness(cur.wet);
+      world.setNight(cur.night);
+      world.setWetness(cur.wet);
 
       const qs = store.get().quality === 'low' ? QUALITY.PRECIP_SCALE_LOW : 1;
       rain.setIntensity(cur.rain * qs);

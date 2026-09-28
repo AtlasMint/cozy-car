@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { WEATHER_FX } from '../core/constants';
 import type { VehicleSpec } from '../core/vehicles';
+import type { LampHead } from './world/world';
 
 /**
  * Lighting rig driven by the weather director. Exactly one light casts shadows (the key),
@@ -32,7 +33,8 @@ export interface LightingRig {
   setHeadlights(k: number): void;
   /** Move every light and the shadow frustum onto a different vehicle. */
   setVehicle(spec: VehicleSpec): void;
-  updateStreetlights(heads: THREE.Vector3[], count: number, night: number): void;
+  /** Park the two tracking lights on the nearest lamp heads, each at that head's own level. */
+  updateStreetlights(heads: LampHead[], count: number, night: number): void;
   dispose(): void;
 }
 
@@ -230,8 +232,8 @@ export function createLighting(): LightingRig {
       for (let i = 0; i < street.length; i++) {
         const l = street[i]!;
         if (i < count) {
-          l.position.copy(heads[i]!);
-          l.intensity = SL.intensity * nightK;
+          l.position.copy(heads[i]!.position);
+          l.intensity = SL.intensity * nightK * heads[i]!.intensity;
         } else {
           l.intensity = 0;
         }
