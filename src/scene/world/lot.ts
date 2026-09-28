@@ -19,6 +19,12 @@ import type { LampHead, World } from './world';
  * the lot adds no material key and no light: the lamp head is emissive, and the point light
  * that falls on the vehicle's nose at night is one of the two the road world uses for its
  * streetlights, pointed here instead.
+ *
+ * Furniture is the lot's, per vehicle, not the body's: it must not ride `bodyRig` (a table does
+ * not idle with an engine) and it is built in the lot's materials. In v0.6 exactly one vehicle
+ * has any — the camper, which has had its passenger seat swivelled to face the table since
+ * v0.4 with the comment "the vehicle is parked, and someone's partner turned their chair
+ * round". Here that is finally true.
  */
 
 export interface Aabb {
@@ -56,7 +62,74 @@ export function lotProps(): Aabb[] {
   for (const [i, p] of LOT.PINES.entries()) props.push({ name: `pine${i}`, min: [p.x - 0.9, 0, p.z - 0.9], max: [p.x + 0.9, 3.7, p.z + 0.9] });
   for (const [i, b] of LOT.BUSHES.entries()) props.push({ name: `bush${i}`, min: [b.x - 0.6, 0, b.z - 0.6], max: [b.x + 0.6, 0.7, b.z + 0.6] });
   for (const z of [-S.halfWidth + 0.15, S.halfWidth - 0.15]) props.push({ name: 'bollard', min: [kerbX1 + 0.05, 0, z - 0.08], max: [kerbX1 + 0.25, 0.9, z + 0.08] });
+  // The camper's picnic set. Only shown for the camper, but held to the rule for every spec:
+  // where it stands must be clear whichever vehicle is in the bay.
+  const P = LOT.PICNIC;
+  const hl = P.table.length / 2;
+  const hw = P.table.width / 2;
+  props.push({ name: 'picnicTable', min: [P.x - hl, 0, P.z - hw], max: [P.x + hl, P.table.height, P.z + hw] });
+  for (const side of [-1, 1]) props.push({ name: 'chair', min: [P.x - 0.25, 0, P.z + side * (hw + 0.45) - 0.25], max: [P.x + 0.25, 0.85, P.z + side * (hw + 0.45) + 0.25] });
+  props.push({ name: 'cooler', min: [P.x + hl + 0.1, 0, P.z - 0.2], max: [P.x + hl + 0.55, 0.36, P.z + 0.2] });
+  props.push({ name: 'lantern', min: [P.x - 0.1, P.table.height, P.z - 0.1], max: [P.x + 0.1, P.table.height + 0.3, P.z + 0.1] });
   return props;
+}
+
+/**
+ * The camper's table on the verge: a picnic table, two folding chairs either side of it turned
+ * to face each other across it, a cooler at its end and a lantern on it. The lantern's glass is
+ * the one part not in the vertex-colour mesh, because it glows.
+ */
+function buildPicnic(vertexMat: THREE.Material, lanternMat: THREE.Material): { group: THREE.Group; lantern: THREE.Vector3; dispose(): void } {
+  const P = LOT.PICNIC;
+  const T = P.table;
+  const wood = '#8B6A48';
+  const woodDark = '#6E5238';
+  const canvas = '#3E6B8A';
+  const frame = '#5E6266';
+  const hl = T.length / 2;
+  const hw = T.width / 2;
+  const parts: THREE.BufferGeometry[] = [
+    // The top, and two trestle ends under it.
+    colored(at(new THREE.BoxGeometry(T.length, 0.05, T.width), P.x, T.height - 0.025, P.z), wood),
+    colored(at(new THREE.BoxGeometry(0.06, T.height - 0.05, T.width - 0.2), P.x - hl + 0.15, (T.height - 0.05) / 2, P.z), woodDark),
+    colored(at(new THREE.BoxGeometry(0.06, T.height - 0.05, T.width - 0.2), P.x + hl - 0.15, (T.height - 0.05) / 2, P.z), woodDark),
+    // The cooler, at the end nearer the verge.
+    colored(at(new THREE.BoxGeometry(0.45, 0.32, 0.4), P.x + hl + 0.325, 0.16, P.z), '#3A5A8C'),
+    colored(at(new THREE.BoxGeometry(0.47, 0.05, 0.42), P.x + hl + 0.325, 0.345, P.z), '#E4E0D3'),
+    // The lantern's body; the glass is separate.
+    colored(at(new THREE.CylinderGeometry(0.06, 0.07, 0.04, 8), P.x, T.height + 0.02, P.z), frame),
+    colored(at(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 8), P.x, T.height + 0.235, P.z), frame),
+  ];
+  // Two folding chairs, one either side, facing the table.
+  for (const side of [-1, 1]) {
+    const cz = P.z + side * (hw + 0.45);
+    parts.push(
+      colored(at(new THREE.BoxGeometry(0.42, 0.04, 0.42), P.x, 0.44, cz), canvas),
+      colored(at(new THREE.BoxGeometry(0.42, 0.42, 0.04), P.x, 0.65, cz + side * 0.21), canvas),
+    );
+    for (const dx of [-0.19, 0.19]) {
+      for (const dz of [-0.19, 0.19]) parts.push(colored(at(new THREE.CylinderGeometry(0.012, 0.012, 0.44, 5), P.x + dx, 0.22, cz + dz), frame));
+    }
+  }
+  const geom = merge(parts);
+  const mesh = new THREE.Mesh(geom, vertexMat);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.name = 'lot:picnic';
+  const glassGeom = at(new THREE.CylinderGeometry(0.045, 0.045, 0.18, 8), P.x, T.height + 0.13, P.z);
+  const glass = new THREE.Mesh(glassGeom, lanternMat);
+  glass.name = 'lot:lantern';
+  const group = new THREE.Group();
+  group.name = 'lot:dressing:van';
+  group.add(mesh, glass);
+  return {
+    group,
+    lantern: new THREE.Vector3(P.x, T.height + 0.16, P.z),
+    dispose() {
+      geom.dispose();
+      glassGeom.dispose();
+    },
+  };
 }
 
 /** The z of each bay line: the vehicle's bay is centred, its neighbours either side. */
@@ -229,6 +302,18 @@ export function createLot(maxAnisotropy: number): World {
   group.add(pole, head);
   const headPos = new THREE.Vector3(L.x - 0.45, 5.05, L.z);
 
+  // --- Furniture, per vehicle. Built once each, shown for the vehicle it belongs to. A lantern
+  // on the table is the second lamp head, at a lantern's level, whenever it is on show.
+  const lanternMat = new THREE.MeshStandardMaterial({ color: '#FFE2A8', emissive: '#FFC07A', emissiveIntensity: 0, roughness: 0.4 });
+  const dressing: Partial<Record<VehicleId, ReturnType<typeof buildPicnic>>> = {
+    van: buildPicnic(vertexMat, lanternMat),
+  };
+  for (const d of Object.values(dressing)) {
+    d.group.visible = false;
+    group.add(d.group);
+  }
+  let shownDressing: VehicleId | null = null;
+
   // --- The wheel stop under the nose, placed per vehicle: ahead of the front tyre's contact.
   const stopGeom = new THREE.BoxGeometry(LOT.WHEEL_STOP.length, LOT.WHEEL_STOP.height, LOT.WHEEL_STOP.depth);
   const stopMat = new THREE.MeshStandardMaterial({ color: '#C9C2B2', roughness: 0.95 });
@@ -251,6 +336,7 @@ export function createLot(maxAnisotropy: number): World {
     },
     setNight(night) {
       lampMat.emissiveIntensity = night * 2.5;
+      lanternMat.emissiveIntensity = night * 1.8;
     },
     setWetness(wet) {
       surfaceMat.color.lerpColors(dryColor, wetColor, wet);
@@ -260,10 +346,16 @@ export function createLot(maxAnisotropy: number): World {
       if (out.length === 0) return 0;
       out[0]!.position.copy(headPos);
       out[0]!.intensity = 1;
-      return 1;
+      const d = shownDressing ? dressing[shownDressing] : undefined;
+      if (!d || out.length < 2) return 1;
+      out[1]!.position.copy(d.lantern);
+      out[1]!.intensity = LOT.PICNIC.lanternLevel;
+      return 2;
     },
     setVehicle(id) {
       placeStop(id);
+      for (const [vid, d] of Object.entries(dressing)) d.group.visible = vid === id;
+      shownDressing = id in dressing ? id : null;
     },
     setVisible(on) {
       group.visible = on;
@@ -280,6 +372,8 @@ export function createLot(maxAnisotropy: number): World {
       lampMat.dispose();
       stopGeom.dispose();
       stopMat.dispose();
+      lanternMat.dispose();
+      for (const d of Object.values(dressing)) d.dispose();
     },
   };
 }

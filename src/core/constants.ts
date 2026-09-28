@@ -123,6 +123,12 @@ export const LOT = {
     { x: 7.6, z: 0.6 },
   ],
   WHEEL_STOP: { length: 1.6, height: 0.1, depth: 0.16 },
+  /**
+   * The camper's table, on the verge beside the head kerb, near side — ahead of every nose, so
+   * inside the camera rule by the first inequality. `lanternLevel` is the lantern's point light
+   * as a share of a streetlight's; it borrows the second of the two the road world uses.
+   */
+  PICNIC: { x: 5.1, z: -1.7, table: { length: 1.5, height: 0.74, width: 0.8 }, lanternLevel: 0.14 },
   TEXTURE_PX: 1024,
 } as const;
 
