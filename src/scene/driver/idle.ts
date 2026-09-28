@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Mode } from '../../core/store';
-import { DRIVER } from '../../core/constants';
+import { DRIVER, LOT } from '../../core/constants';
 import { createSpring } from '../../motion/spring';
 import { damp, lerp, randRange } from '../../util/math';
 import type { DriverFigure } from './figure';
@@ -9,6 +9,10 @@ import type { DriverFigure } from './figure';
  * Layered idle: breathing, a head that lags and undershoots the car's bounce, occasional
  * micro-gestures legible from behind, and a posture that straightens in Focus. Gestures never
  * overlap; they are queued. All amplitudes scale with the reduced-motion flag.
+ *
+ * Parked, the hands come off the wheel and rest on the thighs, the gear-lever gesture drops
+ * out of the pool and the gaps between gestures stretch: from behind, "not driving" is mostly
+ * where the hands are.
  */
 export interface DriverIdle {
   update(dt: number, elapsed: number, bodyY: number, mode: Mode, reducedMotion: boolean): void;
@@ -37,6 +41,8 @@ interface Gesture {
   apply: GestureFn;
   focusOnly?: boolean;
   chillOnly?: boolean;
+  /** Not while parked: there is no reason to reach for the lever with the engine off. */
+  notInPark?: boolean;
 }
 
 const pulse = (k: number, a: number, b: number) => {
@@ -101,6 +107,7 @@ export function createDriverIdle(figure: DriverFigure): DriverIdle {
       weight: 2,
       duration: 9,
       chillOnly: true,
+      notInPark: true,
       apply(k, pose) {
         const on = pulse(k, 0.12, 0.9);
         tmp.copy(gearKnob);
@@ -140,7 +147,7 @@ export function createDriverIdle(figure: DriverFigure): DriverIdle {
 
   const pickGesture = (mode: Mode): Gesture => {
     const pool = gestures.filter(
-      (g) => !(g.chillOnly && mode === 'focus') && !(g.focusOnly && mode === 'chill') && !(g.name === 'handToGear' && !P.gearKnob),
+      (g) => !(g.chillOnly && mode === 'focus') && !(g.focusOnly && mode === 'chill') && !(g.notInPark && mode === 'park') && !(g.name === 'handToGear' && !P.gearKnob),
     );
     const total = pool.reduce((s, g) => s + g.weight, 0);
     let r = Math.random() * total;
@@ -155,6 +162,10 @@ export function createDriverIdle(figure: DriverFigure): DriverIdle {
   const s = { headYaw: 0, headPitch: 0, headRoll: 0, torsoRoll: 0, torsoLean: 0, shoulderLift: 0 };
   const handL = new THREE.Vector3();
   const handR = new THREE.Vector3();
+  // Where the hands rest when there is no wheel to hold: on the thighs, found from the hips
+  // each frame so the figure's own motion carries them.
+  const lapL = new THREE.Vector3();
+  const lapR = new THREE.Vector3();
   let handsInit = false;
   const posture = createSpring(0); // 0 = chill slump, 1 = focus upright
 
@@ -202,7 +213,7 @@ export function createDriverIdle(figure: DriverFigure): DriverIdle {
         current.apply(k, pose, { cupLift: 0 });
         if (k >= 1) {
           current = null;
-          nextGestureIn = randRange(DRIVER.GESTURE_GAP_MIN, DRIVER.GESTURE_GAP_MAX);
+          nextGestureIn = randRange(DRIVER.GESTURE_GAP_MIN, DRIVER.GESTURE_GAP_MAX) * (mode === 'park' ? LOT.GESTURE_GAP_SCALE : 1);
         }
       } else {
         nextGestureIn -= dt;
@@ -245,19 +256,29 @@ export function createDriverIdle(figure: DriverFigure): DriverIdle {
       figure.head.rotation.z = -s.headPitch * amp;
       figure.head.rotation.x = s.headRoll * amp;
 
-      // Hands: default to the wheel grips; gestures override the left hand.
+      // Hands: default to the wheel grips, or parked to the lap; gestures override the left hand.
+      const parked = mode === 'park';
+      if (parked) {
+        figure.hips.getWorldPosition(lapL);
+        lapL.x += LOT.LAP.forward;
+        lapL.y += LOT.LAP.up;
+        lapR.copy(lapL);
+        lapL.z -= LOT.LAP.out;
+        lapR.z += LOT.LAP.out;
+      }
       figure.gripTargets[0].getWorldPosition(tmp);
       if (!handsInit) {
-        handL.copy(tmp);
-        figure.gripTargets[1].getWorldPosition(handR);
+        handL.copy(parked ? lapL : tmp);
+        if (parked) handR.copy(lapR);
+        else figure.gripTargets[1].getWorldPosition(handR);
         handsInit = true;
       }
-      const wantL = pose.handL ?? tmp;
+      const wantL = pose.handL ?? (parked ? lapL : tmp);
       handL.x = damp(handL.x, wantL.x, 5, dt);
       handL.y = damp(handL.y, wantL.y, 5, dt);
       handL.z = damp(handL.z, wantL.z, 5, dt);
       figure.gripTargets[1].getWorldPosition(tmp);
-      const wantR = pose.handR ?? tmp;
+      const wantR = pose.handR ?? (parked ? lapR : tmp);
       handR.x = damp(handR.x, wantR.x, 5, dt);
       handR.y = damp(handR.y, wantR.y, 5, dt);
       handR.z = damp(handR.z, wantR.z, 5, dt);

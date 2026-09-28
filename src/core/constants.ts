@@ -129,6 +129,10 @@ export const LOT = {
    * as a share of a streetlight's; it borrows the second of the two the road world uses.
    */
   PICNIC: { x: 5.1, z: -1.7, table: { length: 1.5, height: 0.74, width: 0.8 }, lanternLevel: 0.14 },
+  /** Parked, the driver has nowhere to be: the gaps between gestures stretch by this much. */
+  GESTURE_GAP_SCALE: 1.5,
+  /** Where a resting hand lies, from the hips: forward along the thigh, up onto it, out to its side. */
+  LAP: { forward: 0.18, up: 0.08, out: 0.09 },
   TEXTURE_PX: 1024,
 } as const;
 
