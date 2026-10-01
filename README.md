@@ -18,6 +18,7 @@ scenery are all primitives built in code.
 ```sh
 bun install
 bun dev          # http://localhost:5555, hot reloading
+bun run dev --host   # the same, open to your network — prints the address for a phone
 bun run build    # static bundle in dist/
 bun run typecheck
 bun test
@@ -26,6 +27,10 @@ bun test
 `dev.ts` wraps Bun's HTML entrypoint bundler in `Bun.serve` so files fetched at runtime from
 `public/` (the audio loops) are served too. `build` bundles `index.html` and copies `public/`
 into `dist/`; serve `dist/` from any static host.
+
+The dev server listens on this machine only unless given `--host`. Opened from another device
+it is plain http on a LAN address, which browsers do not treat as a secure context, so they
+refuse geolocation and the weather falls back to Kuala Lumpur; pick a town from the badge.
 
 Useful hashes: `#vehicle=van` picks a vehicle (`hatchback`, `van`, `sports`);
 `#weather=thunder&night=1&temp=4` forces a weather state (kinds: clear, cloudy, overcast, fog,
