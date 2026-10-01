@@ -336,5 +336,5 @@ Nothing else needs to change.
 See [docs/PLAN-car-init.md](docs/PLAN-car-init.md) for the original implementation plan and
 [docs/archive/](docs/archive/) for the version logs (`v0.1` cutaway, `v0.2` open roof, `v0.3`
 three vehicles, `v0.4` full-height camper, `v0.5` controls and mix, `v0.6` park, horn and
-keys), and [docs/PLAN-cars.md](docs/PLAN-cars.md), [docs/PLAN-ui.md](docs/PLAN-ui.md) and
+keys, `v0.7` on a phone), and [docs/PLAN-cars.md](docs/PLAN-cars.md), [docs/PLAN-ui.md](docs/PLAN-ui.md) and
 [docs/PLAN-park.md](docs/PLAN-park.md) for the plans v0.3, v0.5 and v0.6 followed.
