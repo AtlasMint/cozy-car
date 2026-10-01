@@ -32,6 +32,7 @@ import { createGunControl } from './ui/gunControl';
 import { createHornControl } from './ui/hornControl';
 import { createHotkeys } from './ui/hotkeys';
 import { createSpotifyPanel } from './ui/spotifyPanel';
+import { createRotatePrompt } from './ui/rotatePrompt';
 import { kindLabel } from './weather/wmo';
 import * as THREE from 'three';
 
@@ -495,11 +496,28 @@ loop.onTick((dt, elapsed) => {
 });
 loop.start();
 
+// A phone held upright gets the rotate prompt, and behind it the app stops as a hidden tab does:
+// no frames, no sound. A resize clears the canvas, so while stopped one still is drawn after
+// each, and the dimmed screen goes on showing where it stopped.
+let upright = false;
+const still = () => {
+  if (upright) rig.renderer.render(stage.scene, iso.camera);
+};
+rig.onResize(still);
+const rotatePrompt = createRotatePrompt(overlay, store, (u) => {
+  upright = u;
+  mixer.hold(u);
+  if (u) loop.stop();
+  else loop.start();
+  still();
+});
+
 // Hot reload: tear the vehicle down the same way a swap will, closing a working agreement
 // the repo has been violating since v0.1.
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     loop.stop();
+    rotatePrompt.dispose();
     hotkeys.dispose();
     car.dispose();
     mixer.dispose();

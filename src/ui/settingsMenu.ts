@@ -1,7 +1,7 @@
 import type { Store } from '../core/store';
 import type { Hotkeys } from './hotkeys';
 import { createMenu } from './menu';
-import { el, type Overlay } from './overlay';
+import { el, PHONE_SIDEWAYS, type Overlay } from './overlay';
 import { tip } from './tooltip';
 
 /**
@@ -19,6 +19,8 @@ const CSS = /* css */ `
 #overlay .ui-keys { display: flex; flex-direction: column; gap: 6px; }
 #overlay .ui-keys div { display: grid; grid-template-columns: 26px 1fr; align-items: center; gap: 10px; font-size: 13px; }
 #overlay .ui-keys .ui-kbd { justify-self: start; }
+/* A phone has no keyboard to list, and the menu has little height to spare. */
+@media ${PHONE_SIDEWAYS} { #overlay .ui-shortcuts { display: none; } }
 `;
 
 let cssInjected = false;
@@ -61,9 +63,9 @@ export function createSettingsMenu(overlay: Overlay, store: Store, hotkeys: Hotk
     'Fewer raindrops, softer shadows, less clutter in the cabin',
   );
 
-  menu.body.appendChild(el('hr'));
-  menu.body.appendChild(el('h3', undefined, 'Shortcuts'));
-  const keys = el('div', 'ui-keys');
+  menu.body.appendChild(el('hr', 'ui-shortcuts'));
+  menu.body.appendChild(el('h3', 'ui-shortcuts', 'Shortcuts'));
+  const keys = el('div', 'ui-keys ui-shortcuts');
   menu.body.appendChild(keys);
   const paintKeys = () => {
     keys.replaceChildren();

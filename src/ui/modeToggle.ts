@@ -1,6 +1,6 @@
 import { canEnter, MODES, nextMode } from '../core/mode';
 import type { Store, Mode } from '../core/store';
-import { el, type Overlay } from './overlay';
+import { el, PHONE_SIDEWAYS, type Overlay } from './overlay';
 import type { Hotkeys } from './hotkeys';
 import { tip } from './tooltip';
 
@@ -30,7 +30,9 @@ const TIP: Readonly<Record<Mode, string>> = {
 };
 const FOCUS_FROM_PARK = 'Pull out first — F';
 /** The start screen's one line of copy, at a tenth of the size, for as long as it is needed. */
-const HINT = 'Press F to start the engine and pull out.';
+const HINT = window.matchMedia('(pointer: coarse)').matches
+  ? 'Tap Chill to start the engine and pull out.'
+  : 'Press F to start the engine and pull out.';
 
 const CSS = /* css */ `
 #overlay .ui-mode { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
@@ -38,6 +40,12 @@ const CSS = /* css */ `
 #overlay .ui-mode-hint[hidden] { display: none; }
 #overlay .ui-seg button[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
 #overlay .ui-seg button[aria-disabled="true"]:hover { background: transparent; }
+/* On a phone on its side the controls are one row, and the hint is wider than the buttons it
+   explains; standing in the row it would push the row onto two lines. */
+@media ${PHONE_SIDEWAYS} {
+  #overlay .ui-mode { position: relative; }
+  #overlay .ui-mode-hint { position: absolute; right: 0; bottom: calc(100% + 6px); white-space: nowrap; }
+}
 `;
 
 let cssInjected = false;

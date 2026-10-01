@@ -15,6 +15,15 @@ export interface Overlay {
   panels: HTMLElement;
 }
 
+/**
+ * A phone: a touch screen whose short side is a phone's. On its side it gets the narrow layout;
+ * held upright, the rotate prompt covers everything (see rotatePrompt.ts).
+ */
+export const PHONE_SIDEWAYS = '(pointer: coarse) and (orientation: landscape) and (max-height: 600px)';
+export const PHONE_UPRIGHT = '(pointer: coarse) and (orientation: portrait) and (max-width: 600px)';
+/** Too little room for the controls beside the badge: a narrow window, or a phone on its side. */
+export const NARROW = `(max-width: 640px), ${PHONE_SIDEWAYS}`;
+
 const CSS = /* css */ `
 :root {
   --ui-ink: #f2e3c9;
@@ -67,11 +76,14 @@ const CSS = /* css */ `
 
 #overlay .label { position: absolute; transform: translate(-50%, -140%); padding: 5px 10px; border-radius: 999px; background: var(--ui-bg-strong); border: 1px solid var(--ui-line); font-size: 13px; font-weight: 500; white-space: nowrap; pointer-events: none; }
 
-@media (max-width: 640px) {
-  /* Narrow screens: the badge moves to the top, the controls wrap along the bottom. */
+@media ${NARROW} {
+  /* Narrow screens: the badge moves to the top, the controls wrap along the bottom. A phone on
+     its side has a notch at one end, hence the insets. */
   #overlay { font-size: 13px; }
-  #overlay .ui-corner.left { top: max(12px, env(safe-area-inset-top)); bottom: auto; left: 12px; align-items: flex-start; }
-  #overlay .ui-corner.right { left: 12px; right: 12px; bottom: max(12px, env(safe-area-inset-bottom)); flex-direction: row; flex-wrap: wrap-reverse; justify-content: flex-end; gap: 6px; }
+  #overlay .ui-corner.left { top: max(12px, env(safe-area-inset-top)); bottom: auto; left: max(12px, env(safe-area-inset-left)); align-items: flex-start; }
+  #overlay .ui-corner.right { left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); flex-direction: row; flex-wrap: wrap-reverse; justify-content: flex-end; gap: 6px; }
+  /* wrap-reverse swaps the cross axis, so this is the bottom: every control on a line sits on it. */
+  #overlay .ui-corner.right { align-items: flex-start; }
   #overlay .ui-corner.right button, #overlay .ui-corner.right .ui-check { padding: 7px 10px; }
   #overlay .ui-corner.right .ui-range { padding: 3px 10px 3px 3px; }
   #overlay .ui-icon { width: 26px; height: 26px; }

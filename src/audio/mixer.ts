@@ -45,7 +45,11 @@ export interface Mixer {
   busVolume(name: Bus): number;
   /** Create/resume the context. Must be called from a user gesture. */
   resume(): Promise<void>;
-  suspend(): Promise<void>;
+  /**
+   * Silence it as a hidden tab would, and keep it that way until released: neither the tab
+   * coming back into view nor a gesture lets it out. For a phone held upright.
+   */
+  hold(on: boolean): void;
   setVolume(v: number): void;
   /** Multiply the master by `target` (0..1) over `ms`. */
   duck(target: number, ms: number): void;
@@ -60,6 +64,7 @@ export function createMixer(): Mixer {
   let limiter: DynamicsCompressorNode | null = null;
   let volume: number = AUDIO.DEFAULT_VOLUME;
   let disposed = false;
+  let held = false;
   const buses = new Map<Bus, GainNode>();
   // Seeded before the context exists, so a preference restored at boot is not lost waiting for
   // the start gesture.
@@ -95,7 +100,7 @@ export function createMixer(): Mixer {
   };
 
   const onVisibility = () => {
-    if (!context) return;
+    if (!context || held) return;
     if (document.hidden) void context.suspend();
     else void context.resume();
   };
@@ -136,9 +141,14 @@ export function createMixer(): Mixer {
           console.warn('[audio] resume failed', err);
         }
       }
+      // A gesture made while held still unlocks the context, which then stays quiet until let out.
+      if (held) await context?.suspend();
     },
-    async suspend() {
-      if (context && context.state === 'running') await context.suspend();
+    hold(on) {
+      held = on;
+      if (!context) return;
+      if (on) void context.suspend();
+      else if (!document.hidden) void context.resume();
     },
     setVolume(v) {
       volume = Math.max(0, Math.min(1, v));

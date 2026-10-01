@@ -4,7 +4,7 @@ import type { IsoCamera } from '../core/isoCamera';
 import { SPOTIFY, WEATHER } from '../core/constants';
 import { createTuner } from '../audio/tuner';
 import type { WeatherSource } from '../weather/openMeteo';
-import { el, type Overlay } from './overlay';
+import { el, PHONE_SIDEWAYS, type Overlay } from './overlay';
 import { tip } from './tooltip';
 
 /**
@@ -74,8 +74,14 @@ export function embedSrc(ref: SpotifyRef): string {
 }
 
 const PANEL_CSS = /* css */ `
-#overlay .radio-panel { position: absolute; width: min(440px, calc(100vw - 32px)); padding: 12px; border-radius: 16px; background: var(--ui-bg-strong); border: 1px solid var(--ui-line); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); display: flex; flex-direction: column; gap: 10px; opacity: 0; transition: opacity 220ms ease; pointer-events: none; }
+#overlay .radio-panel { position: absolute; width: min(440px, calc(100vw - 32px)); max-height: calc(100% - 32px); overflow-y: auto; padding: 12px; border-radius: 16px; background: var(--ui-bg-strong); border: 1px solid var(--ui-line); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); display: flex; flex-direction: column; gap: 10px; opacity: 0; transition: opacity 220ms ease; pointer-events: none; }
 #overlay .radio-panel.is-open { opacity: 1; pointer-events: auto; }
+/* A phone on its side is not tall enough for the panel and both corners, so while the radio is
+   open the corners step aside; Back to the car is in the panel. */
+@media ${PHONE_SIDEWAYS} {
+  #overlay .ui-corner { transition: opacity 220ms ease, visibility 0s; }
+  #overlay.is-radio .ui-corner { opacity: 0; visibility: hidden; transition: opacity 220ms ease, visibility 0s linear 220ms; }
+}
 #overlay .radio-panel header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 #overlay .radio-panel h2 { margin: 0; font-size: 16px; font-weight: 600; }
 #overlay .radio-panel .presets { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
@@ -318,6 +324,7 @@ export function createSpotifyPanel(
     if (v === open) return;
     open = v;
     panel.classList.toggle('is-open', v);
+    overlay.root.classList.toggle('is-radio', v);
     if (v) {
       let last: string | null = null;
       try {

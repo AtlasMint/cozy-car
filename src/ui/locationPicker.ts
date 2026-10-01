@@ -1,6 +1,6 @@
 import { WEATHER } from '../core/constants';
 import { geocode, type GeoResult, type WeatherSource } from '../weather/openMeteo';
-import { el } from './overlay';
+import { el, NARROW } from './overlay';
 
 /**
  * Popover above the weather badge: type a place, pick a match from Open-Meteo's geocoding
@@ -28,7 +28,9 @@ const CSS = /* css */ `
 #overlay .locpick .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 #overlay .locpick .row button { white-space: nowrap; flex: none; }
 #overlay .locpick .row .ui-hint { flex: 1; text-align: right; font-size: 12px; }
-@media (max-width: 640px) { #overlay .locpick { bottom: auto; top: calc(100% + 8px); } }
+/* The badge is at the top there, so the picker hangs below it, and on a phone on its side there
+   is not much below it. */
+@media ${NARROW} { #overlay .locpick { bottom: auto; top: calc(100% + 8px); max-height: 60vh; overflow-y: auto; } }
 `;
 
 let cssInjected = false;

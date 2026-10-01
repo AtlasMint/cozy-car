@@ -81,6 +81,25 @@ back, so a key cannot be advertised without being bound or bound without being a
 A key with no label is deliberately absent from that list and from the table above. Registering
 one without a label is how something stays worth finding out about.
 
+## On a phone
+
+Run `bun run dev --host` and open the address it prints. A phone is played on its side.
+
+**Held upright**, the screen dims and asks to be turned, and behind that the app stops as it
+does in a hidden tab: no frames, no engine or weather sound, nothing under the dim takes a tap.
+The radio stream and Spotify carry on, as they would in a background tab, because neither is in
+the audio graph. Turn it and everything picks up where it stopped.
+
+**On its side** it gets the narrow layout: the weather badge top-left, the controls in one row
+along the bottom, clear of the notch. Opening the radio clears both corners so the panel has the
+screen; Back to the car brings them back. The keyboard shortcuts leave the settings menu, the
+Park hint says Tap rather than Press, and a touch screen starts on Low quality with the pointer
+parallax off.
+
+"A phone" is a touch screen whose short side is at most 600 px. Both queries are strings in
+[src/ui/overlay.ts](src/ui/overlay.ts) that the CSS and `matchMedia` share. A tablet keeps the
+desktop layout, and a narrow desktop window keeps the narrow layout with no prompt.
+
 ## Park, Chill, Focus
 
 The app opens **parked**: an empty lot on the same plinth, engine off, accessory power on — the
@@ -233,7 +252,8 @@ src/
   ui/          overlay, curtain (the swap fade), menu (the More popovers), tooltip, hotkeys
                (every key binding, and the list the settings menu shows), modeToggle,
                vehiclePicker, weatherBadge, volume (mute, slider and the balance menu),
-               settingsMenu, locationPicker, spotifyPanel, gunControl, hornControl, debugStats
+               settingsMenu, locationPicker, spotifyPanel, gunControl, hornControl, debugStats,
+               rotatePrompt (a phone held upright)
   util/        math, tests/
 ```
 
