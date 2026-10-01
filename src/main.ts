@@ -33,6 +33,7 @@ import { createHornControl } from './ui/hornControl';
 import { createHotkeys } from './ui/hotkeys';
 import { createSpotifyPanel } from './ui/spotifyPanel';
 import { createRotatePrompt } from './ui/rotatePrompt';
+import { createFullscreen } from './ui/fullscreen';
 import { kindLabel } from './weather/wmo';
 import * as THREE from 'three';
 
@@ -94,6 +95,8 @@ const picker = createVehiclePicker(overlay, store, hotkeys);
 createVolumeControl(overlay, store, hotkeys);
 const weather = createWeatherSource(store);
 createWeatherBadge(overlay, store, weather);
+// A phone on its side is offered full screen once a visit, with a way back out.
+const fullscreen = createFullscreen(overlay);
 const director = createWeatherDirector({ store, stage, lighting, world, car });
 weather.start();
 
@@ -518,6 +521,7 @@ if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     loop.stop();
     rotatePrompt.dispose();
+    fullscreen.dispose();
     hotkeys.dispose();
     car.dispose();
     mixer.dispose();

@@ -66,6 +66,7 @@ export function createRotatePrompt(overlay: Overlay, store: Store, onUpright: (u
     node.classList.toggle('is-shown', upright);
     overlay.root.inert = upright;
     if (upright) node.focus({ preventScroll: true });
+    else if (document.activeElement === node) node.blur();
     onUpright(upright);
   };
   mq.addEventListener('change', apply);

@@ -96,6 +96,11 @@ screen; Back to the car brings them back. The keyboard shortcuts leave the setti
 Park hint says Tap rather than Press, and a touch screen starts on Low quality with the pointer
 parallax off.
 
+**Full screen** is offered the first time the phone is on its side ([src/ui/fullscreen.ts](src/ui/fullscreen.ts)):
+the screen dims and asks, and while full screen a button in the top-right corner leaves it. It
+asks once a visit, whatever the answer. An iPhone's browser cannot put a page full screen, so
+there it never asks.
+
 "A phone" is a touch screen whose short side is at most 600 px. Both queries are strings in
 [src/ui/overlay.ts](src/ui/overlay.ts) that the CSS and `matchMedia` share. A tablet keeps the
 desktop layout, and a narrow desktop window keeps the narrow layout with no prompt.
@@ -253,7 +258,7 @@ src/
                (every key binding, and the list the settings menu shows), modeToggle,
                vehiclePicker, weatherBadge, volume (mute, slider and the balance menu),
                settingsMenu, locationPicker, spotifyPanel, gunControl, hornControl, debugStats,
-               rotatePrompt (a phone held upright)
+               rotatePrompt (a phone held upright), fullscreen (offered on a phone)
   util/        math, tests/
 ```
 
