@@ -82,6 +82,12 @@ export function createMenu(host: HTMLElement, opts: { label: string; align: 'lef
       open = true;
       current = menu;
       body.classList.add('is-open');
+      // Keep it on screen. Its alignment assumes where the host sits, and on a narrow screen the
+      // row is laid out differently and a right-aligned menu can hang off the left edge.
+      body.style.translate = '';
+      const r = body.getBoundingClientRect();
+      const dx = Math.max(16 - r.left, Math.min(0, window.innerWidth - 16 - r.right));
+      if (dx) body.style.translate = `${dx}px 0`;
       trigger.setAttribute('aria-expanded', 'true');
       // Focus the popover, not its first control: a slider that takes focus on open will also
       // take the arrow keys, and the user has not chosen a row yet.
